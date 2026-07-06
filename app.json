@@ -10,17 +10,26 @@
     ],
     "ios": {
       "supportsTablet": false,
+      "bundleIdentifier": "com.crimson054.aiphotocoach",
       "infoPlist": {
-        "NSCameraUsageDescription": "Camera access is required for real-time photography guidance."
+        "NSCameraUsageDescription": "Camera access is required for real-time photography guidance.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.crimson054.aiphotocoach",
       "permissions": [
         "CAMERA"
       ]
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d299e567-a87b-4c2f-a73e-7a4e3a2c6e15"
+      }
+    },
+    "owner": "crimson054"
   }
 }

@@ -8,11 +8,14 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:ios:dev": "eas build --profile development --platform ios",
+    "build:android:dev": "eas build --profile development --platform android"
   },
   "dependencies": {
     "expo": "^57.0.2",
     "expo-camera": "~57.0.0",
+    "expo-dev-client": "~57.0.5",
     "lucide-react-native": "^1.23.0",
     "react": "19.2.3",
     "react-native": "0.86.0",

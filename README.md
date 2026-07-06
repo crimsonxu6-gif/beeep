@@ -23,6 +23,25 @@ npm start
 
 Open the project in Expo Go or a simulator. Without `EXPO_PUBLIC_SHUTTERMUSE_API_URL`, the app uses a local mock guidance engine so the prototype remains runnable.
 
+## Development build
+
+Expo Go version mismatches can be avoided with an EAS development build:
+
+```bash
+npm install
+eas login
+eas init
+npm run build:ios:dev
+```
+
+For iPhone installation, EAS will ask for Apple credentials and device/profile setup during the iOS build. The project uses `expo-dev-client`, so after the build is installed you can connect it to the local Metro server with `npx expo start --dev-client`.
+
+Android test APK:
+
+```bash
+npm run build:android:dev
+```
+
 ## ShutterMuse API contract
 
 Set `EXPO_PUBLIC_SHUTTERMUSE_API_URL` to a service that accepts:
