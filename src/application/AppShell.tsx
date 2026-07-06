@@ -1,29 +1,32 @@
 import { useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  LayoutChangeEvent,
-  Pressable,
-  StyleSheet,
-  Text,
-  View
-} from "react-native";
+import { LayoutChangeEvent, StatusBar, StyleSheet, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 
+import { AppBottomTabs } from "@/ui/AppBottomTabs";
+import { AppRoute } from "./navigation";
 import { appConfig } from "@/config";
+import { CameraWorkspace } from "@/screens/CameraWorkspace";
+import { CoachScreen } from "@/screens/CoachScreen";
+import { HomeScreen } from "@/screens/HomeScreen";
+import { ProfileScreen } from "@/screens/ProfileScreen";
 import { useCameraFrameSampler } from "@/camera/useCameraFrameSampler";
 import { useGuidanceController } from "./useGuidanceController";
-import { CameraOverlay, OverlaySize } from "@/ui/CameraOverlay";
+import { OverlaySize } from "@/ui/CameraOverlay";
+import { colors } from "@/theme/design";
 
 export function AppShell() {
   const cameraRef = useRef<CameraView | null>(null);
+  const [route, setRoute] = useState<AppRoute>("home");
   const [permission, requestPermission] = useCameraPermissions();
   const [overlaySize, setOverlaySize] = useState<OverlaySize>({ width: 0, height: 0 });
   const { stableGuidance, visionFeatures, latencyMs, processing, error, handleFrame } =
     useGuidanceController();
 
+  const cameraActive = route === "camera" && Boolean(permission?.granted);
+
   useCameraFrameSampler({
     cameraRef,
-    enabled: Boolean(permission?.granted),
+    enabled: cameraActive,
     fps: appConfig.sampleFps,
     onFrame: handleFrame,
     onError: (cameraError) => {
@@ -36,36 +39,28 @@ export function AppShell() {
     setOverlaySize({ width, height });
   };
 
-  if (!permission) {
-    return (
-      <View style={styles.permissionScreen}>
-        <ActivityIndicator color="#f8fafc" />
-      </View>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <View style={styles.permissionScreen}>
-        <Text style={styles.permissionTitle}>需要相机权限</Text>
-        <Pressable style={styles.permissionButton} onPress={requestPermission}>
-          <Text style={styles.permissionButtonText}>开启相机</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.root} onLayout={handleLayout}>
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
-      <CameraOverlay
-        stableGuidance={stableGuidance}
-        visionFeatures={visionFeatures}
-        overlaySize={overlaySize}
-        processing={processing}
-        latencyMs={latencyMs}
-        error={error}
-      />
+    <View style={styles.root}>
+      <StatusBar barStyle={route === "camera" ? "light-content" : "dark-content"} />
+      {route === "home" ? <HomeScreen onNavigate={setRoute} /> : null}
+      {route === "coach" ? <CoachScreen onNavigate={setRoute} /> : null}
+      {route === "profile" ? <ProfileScreen /> : null}
+      {route === "camera" ? (
+        <CameraWorkspace
+          cameraRef={cameraRef}
+          permission={permission}
+          requestPermission={requestPermission}
+          overlaySize={overlaySize}
+          onLayout={handleLayout}
+          stableGuidance={stableGuidance}
+          visionFeatures={visionFeatures}
+          latencyMs={latencyMs}
+          processing={processing}
+          error={error}
+          onBack={() => setRoute("home")}
+        />
+      ) : null}
+      <AppBottomTabs activeRoute={route} onChange={setRoute} />
     </View>
   );
 }
@@ -73,32 +68,6 @@ export function AppShell() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#050505"
-  },
-  permissionScreen: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 18,
-    padding: 24,
-    backgroundColor: "#050505"
-  },
-  permissionTitle: {
-    color: "#f8fafc",
-    fontSize: 18,
-    fontWeight: "700"
-  },
-  permissionButton: {
-    minWidth: 120,
-    alignItems: "center",
-    borderRadius: 6,
-    backgroundColor: "#f8fafc",
-    paddingHorizontal: 18,
-    paddingVertical: 12
-  },
-  permissionButtonText: {
-    color: "#050505",
-    fontSize: 15,
-    fontWeight: "700"
+    backgroundColor: colors.background
   }
 });

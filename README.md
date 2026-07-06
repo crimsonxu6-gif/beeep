@@ -69,6 +69,13 @@ Optional batch endpoint: set `EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL`; it receive
 - `src/stability`: multi-frame consistency, confidence threshold, debounce, bbox smoothing.
 - `src/ui`: camera overlay arrows, person box, and <=10 character instruction text.
 
+## UI direction
+
+- Minimal, tool-like mobile interface with iOS-native spacing and system typography.
+- Main screens: home dashboard, live camera workspace, composition coach, and profile/services.
+- Camera workspace keeps guidance controls close to the shutter: gallery, capture, composition mode, and pose recommendation.
+- Visual style avoids decorative assets; UI uses soft geometric surfaces, compact controls, and concise action text.
+
 ## Production integration notes
 
 - Replace `PrototypeVisionPreprocessor` with MediaPipe, MoveNet, or YOLO output adapters.
