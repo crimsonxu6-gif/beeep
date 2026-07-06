@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "AI Photo Coach",
+    "slug": "ai-photo-coach",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera access is required for real-time photography guidance."
+      }
+    },
+    "android": {
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
