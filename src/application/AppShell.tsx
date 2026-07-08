@@ -15,7 +15,7 @@ import { colors } from "@/theme/design";
 
 export function AppShell() {
   const cameraRef = useRef<CameraView | null>(null);
-  const [route, setRoute] = useState<AppRoute>("camera");
+  const [route, setRoute] = useState<AppRoute>("home");
   const [permission, requestPermission] = useCameraPermissions();
   const [overlaySize, setOverlaySize] = useState<OverlaySize>({ width: 0, height: 0 });
   const { stableGuidance, visionFeatures, latencyMs, processing, error, handleFrame } =

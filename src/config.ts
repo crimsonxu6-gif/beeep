@@ -21,7 +21,7 @@ export const appConfig = {
     consistentFrames: Math.round(
       clamp(numberFromEnv("EXPO_PUBLIC_STABILITY_FRAMES", 3), 2, 3)
     ),
-    debounceMs: clamp(numberFromEnv("EXPO_PUBLIC_STABILITY_DEBOUNCE_MS", 450), 300, 800),
+    debounceMs: clamp(numberFromEnv("EXPO_PUBLIC_STABILITY_DEBOUNCE_MS", 1800), 800, 3000),
     confidenceThreshold: clamp(numberFromEnv("EXPO_PUBLIC_CONFIDENCE_THRESHOLD", 0.6), 0, 1)
   },
   pipeline: {
