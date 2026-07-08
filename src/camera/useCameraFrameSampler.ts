@@ -81,7 +81,8 @@ export function useCameraFrameSampler({
         .takePictureAsync({
           base64: true,
           quality: 0.35,
-          skipProcessing: true
+          skipProcessing: true,
+          shutterSound: false
         })
         .then((picture) => {
           if (!picture) {

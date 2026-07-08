@@ -1,4 +1,5 @@
 import { StyleSheet, View } from "react-native";
+import Svg, { Path } from "react-native-svg";
 
 import { PersonDetection, VisionFeatures } from "@/types/vision";
 import { OverlaySize } from "./CameraOverlay";
@@ -34,6 +35,48 @@ function mapBoxToOverlay(
   };
 }
 
+function DoodleSubjectFrame({ width, height }: { width: number; height: number }) {
+  const w = Math.max(24, width);
+  const h = Math.max(24, height);
+
+  const outerPath = [
+    `M 18 12`,
+    `C ${w * 0.28} 2, ${w * 0.68} 8, ${w - 18} 14`,
+    `C ${w + 2} ${h * 0.32}, ${w - 8} ${h * 0.72}, ${w - 20} ${h - 18}`,
+    `C ${w * 0.68} ${h + 2}, ${w * 0.28} ${h - 2}, 16 ${h - 14}`,
+    `C -2 ${h * 0.68}, 7 ${h * 0.3}, 18 12`
+  ].join(" ");
+
+  const innerPath = [
+    `M 28 24`,
+    `C ${w * 0.34} 18, ${w * 0.62} 20, ${w - 30} 28`,
+    `C ${w - 18} ${h * 0.42}, ${w - 22} ${h * 0.66}, ${w - 34} ${h - 30}`,
+    `C ${w * 0.62} ${h - 20}, ${w * 0.36} ${h - 18}, 30 ${h - 28}`
+  ].join(" ");
+
+  return (
+    <Svg pointerEvents="none" width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+      <Path
+        d={outerPath}
+        stroke="rgba(255,255,255,0.9)"
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray="12 8"
+        fill="rgba(255,255,255,0.018)"
+      />
+      <Path
+        d={innerPath}
+        stroke="rgba(255,255,255,0.42)"
+        strokeWidth={1.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
 export function PersonBoxOverlay({ visionFeatures, overlaySize }: PersonBoxOverlayProps) {
   if (!visionFeatures) {
     return null;
@@ -61,10 +104,7 @@ export function PersonBoxOverlay({ visionFeatures, overlaySize }: PersonBoxOverl
               }
             ]}
           >
-            <View style={[styles.corner, styles.topLeft]} />
-            <View style={[styles.corner, styles.topRight]} />
-            <View style={[styles.corner, styles.bottomLeft]} />
-            <View style={[styles.corner, styles.bottomRight]} />
+            <DoodleSubjectFrame width={box.width} height={box.height} />
           </View>
         );
       })}
@@ -75,41 +115,6 @@ export function PersonBoxOverlay({ visionFeatures, overlaySize }: PersonBoxOverl
 const styles = StyleSheet.create({
   box: {
     position: "absolute",
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: "rgba(255,255,255,0.88)",
-    borderRadius: 7,
-    backgroundColor: "rgba(255,255,255,0.025)",
     transform: [{ rotate: "-0.4deg" }]
-  },
-  corner: {
-    position: "absolute",
-    width: 24,
-    height: 24,
-    borderColor: "rgba(255,255,255,0.96)"
-  },
-  topLeft: {
-    left: -3,
-    top: -3,
-    borderLeftWidth: 3,
-    borderTopWidth: 3
-  },
-  topRight: {
-    right: -3,
-    top: -3,
-    borderRightWidth: 3,
-    borderTopWidth: 3
-  },
-  bottomLeft: {
-    left: -3,
-    bottom: -3,
-    borderLeftWidth: 3,
-    borderBottomWidth: 3
-  },
-  bottomRight: {
-    right: -3,
-    bottom: -3,
-    borderRightWidth: 3,
-    borderBottomWidth: 3
   }
 });

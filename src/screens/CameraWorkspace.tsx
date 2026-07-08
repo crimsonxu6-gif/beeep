@@ -48,7 +48,14 @@ export function CameraWorkspace({
     <View style={styles.root} onLayout={onLayout}>
       {granted ? (
         <>
-          <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            flash="off"
+            enableTorch={false}
+            animateShutter={false}
+          />
           <CameraOverlay
             stableGuidance={stableGuidance}
             visionFeatures={visionFeatures}
