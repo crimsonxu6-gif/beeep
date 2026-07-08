@@ -1,8 +1,8 @@
 import { StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
+import type { OverlaySize } from "@/components/GuidanceOverlay";
 import { PersonDetection, VisionFeatures } from "@/types/vision";
-import { OverlaySize } from "./CameraOverlay";
 
 interface PersonBoxOverlayProps {
   visionFeatures: VisionFeatures | null;

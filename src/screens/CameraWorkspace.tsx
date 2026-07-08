@@ -8,9 +8,9 @@ import {
   View
 } from "react-native";
 import { CameraView, PermissionResponse } from "expo-camera";
-import { Aperture, Camera, ChevronLeft, Images, ScanFace } from "lucide-react-native";
+import { Aperture, Camera, ChevronLeft, Images } from "lucide-react-native";
 
-import { CameraOverlay, OverlaySize } from "@/ui/CameraOverlay";
+import { GuidanceOverlay, OverlaySize } from "@/components/GuidanceOverlay";
 import { StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
 import { colors, radii, typography } from "@/theme/design";
@@ -56,7 +56,7 @@ export function CameraWorkspace({
             enableTorch={false}
             animateShutter={false}
           />
-          <CameraOverlay
+          <GuidanceOverlay
             stableGuidance={stableGuidance}
             visionFeatures={visionFeatures}
             overlaySize={overlaySize}
@@ -91,10 +91,6 @@ export function CameraWorkspace({
         <View style={styles.modePill}>
           <Aperture size={16} strokeWidth={2.2} color={colors.white} />
           <Text style={styles.modeText}>构图模式</Text>
-        </View>
-        <View style={styles.modePill}>
-          <ScanFace size={16} strokeWidth={2.2} color={colors.white} />
-          <Text style={styles.modeText}>姿势推荐</Text>
         </View>
       </View>
 

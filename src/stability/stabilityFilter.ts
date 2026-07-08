@@ -23,9 +23,7 @@ function guidanceSignature(guidance: GuidanceOutput): string {
 }
 
 export class StabilityFilter {
-  private candidateKey?: string;
-  private candidateGuidance?: GuidanceOutput;
-  private candidateCount = 0;
+  private history: Array<{ key: string; guidance: GuidanceOutput }> = [];
   private lastPublishedKey?: string;
   private lastPublishedAt = 0;
 
@@ -37,19 +35,15 @@ export class StabilityFilter {
     }
 
     const key = guidanceSignature(guidance);
-    if (key === this.candidateKey) {
-      this.candidateCount += 1;
-    } else {
-      this.candidateKey = key;
-      this.candidateGuidance = guidance;
-      this.candidateCount = 1;
-    }
+    this.history = [...this.history, { key, guidance }].slice(-this.options.consistentFrames);
 
-    const isConsistent = this.candidateCount >= this.options.consistentFrames;
+    const isConsistent =
+      this.history.length === this.options.consistentFrames &&
+      this.history.every((item) => item.key === key);
     const debounceElapsed = now - this.lastPublishedAt >= this.options.debounceMs;
     const changed = key !== this.lastPublishedKey;
 
-    if (!isConsistent || !debounceElapsed || !changed || !this.candidateGuidance) {
+    if (!isConsistent || !debounceElapsed || !changed) {
       return null;
     }
 
@@ -58,7 +52,7 @@ export class StabilityFilter {
 
     return {
       key,
-      guidance: this.candidateGuidance,
+      guidance,
       updatedAt: now
     };
   }

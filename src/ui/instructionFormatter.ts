@@ -6,8 +6,8 @@ const moveText = {
   up: "抬高一点",
   down: "压低一点",
   forward: "靠近一点",
-  back: "退后一点",
-  hold: "很好，保持"
+  back: "后退一点",
+  hold: "很好保持"
 } as const;
 
 function clampInstruction(value: string): string {
@@ -49,7 +49,7 @@ function actionToInstruction(action: GuidanceAction): string {
   }
 
   if (action.instruction.toLowerCase().includes("hold")) {
-    return "很好，保持";
+    return "很好保持";
   }
 
   return action.instruction;

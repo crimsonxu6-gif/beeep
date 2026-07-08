@@ -1,8 +1,9 @@
 import { RefObject, useEffect, useRef } from "react";
-import { CameraCapturedPicture, CameraView } from "expo-camera";
+import { CameraView } from "expo-camera";
 
-import { CapturedFrame, FrameImage } from "@/types/frame";
-import { FrameSampler } from "./frameSampler";
+import { CapturedFrame } from "@/types/frame";
+import { CameraController } from "./CameraController";
+import { FrameSampler } from "./FrameSampler";
 
 interface UseCameraFrameSamplerOptions {
   cameraRef: RefObject<CameraView | null>;
@@ -10,32 +11,6 @@ interface UseCameraFrameSamplerOptions {
   fps: number;
   onFrame: (frame: CapturedFrame) => void;
   onError?: (error: Error) => void;
-}
-
-function frameFromPicture(frameId: number, picture: CameraCapturedPicture): CapturedFrame | null {
-  if (!picture.base64 && !picture.uri) {
-    return null;
-  }
-
-  const image: FrameImage = {
-    width: picture.width,
-    height: picture.height,
-    mimeType: "image/jpeg"
-  };
-
-  if (picture.base64) {
-    image.base64 = picture.base64;
-  }
-
-  if (picture.uri) {
-    image.uri = picture.uri;
-  }
-
-  return {
-    frameId,
-    timestamp: Date.now(),
-    image
-  };
 }
 
 export function useCameraFrameSampler({
@@ -46,6 +21,7 @@ export function useCameraFrameSampler({
   onError
 }: UseCameraFrameSamplerOptions): void {
   const frameIdRef = useRef(1);
+  const controllerRef = useRef(new CameraController());
   const samplerRef = useRef(new FrameSampler(fps));
   const inFlightRef = useRef(false);
   const onFrameRef = useRef(onFrame);
@@ -77,19 +53,9 @@ export function useCameraFrameSampler({
       }
 
       inFlightRef.current = true;
-      void camera
-        .takePictureAsync({
-          base64: true,
-          quality: 0.35,
-          skipProcessing: true,
-          shutterSound: false
-        })
-        .then((picture) => {
-          if (!picture) {
-            return;
-          }
-
-          const frame = frameFromPicture(frameIdRef.current, picture);
+      void controllerRef.current
+        .captureFrame(camera, frameIdRef.current)
+        .then((frame) => {
           if (!frame) {
             return;
           }

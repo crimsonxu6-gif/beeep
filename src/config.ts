@@ -19,14 +19,14 @@ export const appConfig = {
   shutterMuseBatchApiUrl: process.env.EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL,
   stability: {
     consistentFrames: Math.round(
-      clamp(numberFromEnv("EXPO_PUBLIC_STABILITY_FRAMES", 2), 2, 3)
+      clamp(numberFromEnv("EXPO_PUBLIC_STABILITY_FRAMES", 3), 2, 3)
     ),
     debounceMs: clamp(numberFromEnv("EXPO_PUBLIC_STABILITY_DEBOUNCE_MS", 450), 300, 800),
     confidenceThreshold: clamp(numberFromEnv("EXPO_PUBLIC_CONFIDENCE_THRESHOLD", 0.6), 0, 1)
   },
   pipeline: {
-    batchSize: 2,
-    maxBatchDelayMs: 120,
+    batchSize: 1,
+    maxBatchDelayMs: 0,
     maxQueueSize: 4
   }
 } as const;
