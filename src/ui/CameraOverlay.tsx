@@ -35,11 +35,13 @@ export function CameraOverlay({
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <View style={styles.ruleOfThirds}>
-        <View style={[styles.gridLine, styles.v1]} />
-        <View style={[styles.gridLine, styles.v2]} />
-        <View style={[styles.gridLine, styles.h1]} />
-        <View style={[styles.gridLine, styles.h2]} />
+        <View style={[styles.verticalLine, styles.v1]} />
+        <View style={[styles.verticalLine, styles.v2]} />
+        <View style={[styles.horizontalLine, styles.h1]} />
+        <View style={[styles.horizontalLine, styles.h2]} />
       </View>
+      <View style={styles.doodleMarkA} />
+      <View style={styles.doodleMarkB} />
       <PersonBoxOverlay visionFeatures={visionFeatures} overlaySize={overlaySize} />
       <OverlayArrows guidance={guidance} />
       <InstructionText text={instruction} processing={processing} latencyMs={latencyMs} error={error} />
@@ -54,34 +56,62 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    opacity: 0.34
+    opacity: 0.38
   },
-  gridLine: {
+  verticalLine: {
     position: "absolute",
-    backgroundColor: "rgba(255,255,255,0.34)"
+    top: 118,
+    bottom: 160,
+    width: 0,
+    borderLeftWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,0.72)"
+  },
+  horizontalLine: {
+    position: "absolute",
+    left: 26,
+    right: 26,
+    height: 0,
+    borderTopWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,0.72)"
   },
   v1: {
     left: "33.333%",
-    top: 0,
-    bottom: 0,
-    width: 1
+    transform: [{ rotate: "-0.6deg" }]
   },
   v2: {
     left: "66.666%",
-    top: 0,
-    bottom: 0,
-    width: 1
+    transform: [{ rotate: "0.5deg" }]
   },
   h1: {
-    top: "33.333%",
-    left: 0,
-    right: 0,
-    height: 1
+    top: "38%",
+    transform: [{ rotate: "0.4deg" }]
   },
   h2: {
-    top: "66.666%",
-    left: 0,
-    right: 0,
-    height: 1
+    top: "64%",
+    transform: [{ rotate: "-0.4deg" }]
+  },
+  doodleMarkA: {
+    position: "absolute",
+    left: 28,
+    top: 142,
+    width: 28,
+    height: 18,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: "rgba(255,255,255,0.55)",
+    transform: [{ rotate: "-22deg" }]
+  },
+  doodleMarkB: {
+    position: "absolute",
+    right: 28,
+    bottom: 262,
+    width: 30,
+    height: 18,
+    borderRightWidth: 2,
+    borderTopWidth: 2,
+    borderColor: "rgba(255,255,255,0.5)",
+    transform: [{ rotate: "18deg" }]
   }
 });

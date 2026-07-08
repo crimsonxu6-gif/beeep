@@ -1,1 +1,1 @@
-export type AppRoute = "home" | "camera" | "coach" | "profile";
+export type AppRoute = "home" | "camera" | "profile";

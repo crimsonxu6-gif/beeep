@@ -1,5 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Camera, ChevronRight, Compass, History, Sparkles, UserRound } from "lucide-react-native";
+import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { Camera, Compass, Crop, Sparkles, UserRound } from "lucide-react-native";
 
 import { AppRoute } from "@/application/navigation";
 import { colors, radii, typography } from "@/theme/design";
@@ -9,20 +9,22 @@ interface HomeScreenProps {
   onNavigate: (route: AppRoute) => void;
 }
 
-const modes = [
-  { title: "构图", meta: "框线 / 留白", Icon: Compass },
+const features = [
+  { title: "构图", meta: "画面位置 / 留白", Icon: Compass },
   { title: "姿势", meta: "肩线 / 头部", Icon: Sparkles },
-  { title: "复盘", meta: "动作记录", Icon: History }
+  { title: "裁剪", meta: "推荐比例 / 二次构图", Icon: Crop }
 ];
 
 export function HomeScreen({ onNavigate }: HomeScreenProps) {
   return (
     <View style={styles.root}>
-      <ToolHeader title="Beeep" subtitle="AI Photo Coach" rightIcon={UserRound} onRightPress={() => onNavigate("profile")} />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
+      <ToolHeader
+        title="Beeep"
+        subtitle="AI Photo Coach"
+        rightIcon={UserRound}
+        onRightPress={() => onNavigate("profile")}
+      />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.hero}>
           <Text style={styles.heroTitle}>实时拍照指导</Text>
           <Text style={styles.heroMeta}>构图、姿势、镜头移动</Text>
@@ -33,22 +35,18 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>工具</Text>
-          <Pressable style={styles.inlineAction} onPress={() => onNavigate("coach")}>
-            <Text style={styles.inlineActionText}>全部</Text>
-            <ChevronRight size={16} strokeWidth={2.1} color={colors.textMuted} />
-          </Pressable>
+          <Text style={styles.sectionTitle}>我们的功能</Text>
         </View>
 
-        <View style={styles.modeGrid}>
-          {modes.map(({ title, meta, Icon }) => (
-            <Pressable key={title} style={styles.modeCard} onPress={() => onNavigate(title === "构图" ? "coach" : "camera")}>
-              <View style={styles.modeIcon}>
+        <View style={styles.featureGrid}>
+          {features.map(({ title, meta, Icon }) => (
+            <View key={title} style={styles.featureCard}>
+              <View style={styles.featureIcon}>
                 <Icon size={19} strokeWidth={2.1} color={colors.accent} />
               </View>
-              <Text style={styles.modeTitle}>{title}</Text>
-              <Text style={styles.modeMeta}>{meta}</Text>
-            </Pressable>
+              <Text style={styles.featureTitle}>{title}</Text>
+              <Text style={styles.featureMeta}>{meta}</Text>
+            </View>
           ))}
         </View>
 
@@ -117,36 +115,26 @@ const styles = StyleSheet.create({
     height: 50,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginTop: 18
   },
   sectionTitle: {
     ...typography.section,
     color: colors.text
   },
-  inlineAction: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2
-  },
-  inlineActionText: {
-    ...typography.caption,
-    color: colors.textMuted
-  },
-  modeGrid: {
+  featureGrid: {
     flexDirection: "row",
     gap: 10
   },
-  modeCard: {
+  featureCard: {
     flex: 1,
-    minHeight: 118,
+    minHeight: 124,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.hairline,
     backgroundColor: colors.surface,
     padding: 12
   },
-  modeIcon: {
+  featureIcon: {
     width: 34,
     height: 34,
     alignItems: "center",
@@ -154,13 +142,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     backgroundColor: colors.accentSoft
   },
-  modeTitle: {
+  featureTitle: {
     marginTop: 14,
     ...typography.body,
     color: colors.text,
     fontWeight: "800"
   },
-  modeMeta: {
+  featureMeta: {
     marginTop: 3,
     ...typography.caption,
     color: colors.textMuted

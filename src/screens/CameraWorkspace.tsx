@@ -8,7 +8,7 @@ import {
   View
 } from "react-native";
 import { CameraView, PermissionResponse } from "expo-camera";
-import { Aperture, Camera, ChevronLeft, Images, ScanFace, SlidersHorizontal } from "lucide-react-native";
+import { Aperture, Camera, ChevronLeft, Images, ScanFace } from "lucide-react-native";
 
 import { CameraOverlay, OverlaySize } from "@/ui/CameraOverlay";
 import { StableGuidance } from "@/types/guidance";
@@ -77,9 +77,7 @@ export function CameraWorkspace({
           <Text style={styles.topTitle}>实时构图</Text>
           <Text style={styles.topMeta}>{processing ? "分析中" : "Ready"}</Text>
         </View>
-        <Pressable style={styles.topIcon}>
-          <SlidersHorizontal size={20} strokeWidth={2.3} color={colors.white} />
-        </Pressable>
+        <View style={styles.topSpacer} />
       </View>
 
       <View style={styles.modeRail}>
@@ -101,10 +99,7 @@ export function CameraWorkspace({
         <Pressable style={styles.shutter}>
           <View style={styles.shutterInner} />
         </Pressable>
-        <Pressable style={styles.sideControl}>
-          <ScanFace size={22} strokeWidth={2.2} color={colors.white} />
-          <Text style={styles.sideControlText}>姿势</Text>
-        </Pressable>
+        <View style={styles.dockSpacer} />
       </View>
     </View>
   );
@@ -163,6 +158,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.round,
     backgroundColor: "rgba(255,255,255,0.12)"
   },
+  topSpacer: {
+    width: 36,
+    height: 36
+  },
   topTitleWrap: {
     alignItems: "center"
   },
@@ -217,6 +216,10 @@ const styles = StyleSheet.create({
   sideControlText: {
     ...typography.caption,
     color: "rgba(255,255,255,0.76)"
+  },
+  dockSpacer: {
+    width: 64,
+    height: 44
   },
   shutter: {
     width: 62,

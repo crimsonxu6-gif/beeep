@@ -48,9 +48,15 @@ function positionStyle(direction: MoveDirection) {
 export function OverlayArrows({ guidance }: OverlayArrowsProps) {
   const direction = primaryDirection(guidance);
 
+  if (direction === "hold") {
+    return null;
+  }
+
   return (
     <View pointerEvents="none" style={[styles.arrowWrap, positionStyle(direction)]}>
       <Text style={styles.arrow}>{arrows[direction]}</Text>
+      <View style={styles.sparkA} />
+      <View style={styles.sparkB} />
     </View>
   );
 }
@@ -58,44 +64,68 @@ export function OverlayArrows({ guidance }: OverlayArrowsProps) {
 const styles = StyleSheet.create({
   arrowWrap: {
     position: "absolute",
-    width: 72,
-    height: 72,
+    width: 74,
+    height: 58,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 36,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.34)",
-    backgroundColor: "rgba(0,0,0,0.24)"
+    borderRadius: 999,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,0.86)",
+    backgroundColor: "rgba(0,0,0,0.08)",
+    transform: [{ rotate: "-6deg" }]
   },
   arrow: {
-    color: "#ffffff",
-    fontSize: 42,
-    lineHeight: 52,
-    fontWeight: "800"
+    color: "#FFFFFF",
+    fontSize: 36,
+    lineHeight: 42,
+    fontWeight: "900"
+  },
+  sparkA: {
+    position: "absolute",
+    right: -8,
+    top: -7,
+    width: 10,
+    height: 10,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    borderColor: "rgba(255,255,255,0.8)",
+    transform: [{ rotate: "28deg" }]
+  },
+  sparkB: {
+    position: "absolute",
+    left: -9,
+    bottom: -4,
+    width: 12,
+    height: 8,
+    borderBottomWidth: 2,
+    borderColor: "rgba(255,255,255,0.76)",
+    transform: [{ rotate: "-12deg" }]
   },
   center: {
     left: "50%",
     top: "48%",
-    transform: [{ translateX: -36 }, { translateY: -36 }]
+    marginLeft: -37,
+    marginTop: -29
   },
   left: {
-    left: 28,
+    left: 42,
     top: "48%",
-    transform: [{ translateY: -36 }]
+    marginTop: -29
   },
   right: {
-    right: 28,
+    right: 42,
     top: "48%",
-    transform: [{ translateY: -36 }]
+    marginTop: -29
   },
   up: {
     left: "50%",
-    top: 86,
-    transform: [{ translateX: -36 }]
+    top: 140,
+    marginLeft: -37
   },
   down: {
     left: "50%",
-    bottom: 142,
-    transform: [{ translateX: -36 }]
+    bottom: 272,
+    marginLeft: -37
   }
 });

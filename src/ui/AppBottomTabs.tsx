@@ -1,27 +1,18 @@
 import { ComponentType } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import {
-  Camera,
-  CheckCircle2,
-  Compass,
-  Home,
-  LucideProps,
-  UserRound
-} from "lucide-react-native";
+import { CheckCircle2, Home, LucideProps, UserRound } from "lucide-react-native";
 
 import { AppRoute } from "@/application/navigation";
 import { colors, radii, typography } from "@/theme/design";
 
 interface TabItem {
-  route: AppRoute;
+  route: Exclude<AppRoute, "camera">;
   label: string;
   Icon: ComponentType<LucideProps>;
 }
 
 const tabs: TabItem[] = [
   { route: "home", label: "首页", Icon: Home },
-  { route: "camera", label: "拍照", Icon: Camera },
-  { route: "coach", label: "构图", Icon: Compass },
   { route: "profile", label: "我", Icon: UserRound }
 ];
 
@@ -40,7 +31,7 @@ export function AppBottomTabs({ activeRoute, onChange }: AppBottomTabsProps) {
             key={route}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
-            style={[styles.item, active && styles.itemActive]}
+            style={styles.item}
             onPress={() => onChange(route)}
           >
             <View style={[styles.iconWrap, active && styles.iconWrapActive]}>
@@ -71,7 +62,7 @@ const styles = StyleSheet.create({
     height: 68,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "space-around",
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.hairline,
@@ -79,14 +70,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8
   },
   item: {
-    width: "25%",
+    width: "50%",
     height: 54,
     alignItems: "center",
     justifyContent: "center",
     gap: 3
-  },
-  itemActive: {
-    backgroundColor: "transparent"
   },
   iconWrap: {
     width: 30,

@@ -60,7 +60,12 @@ export function PersonBoxOverlay({ visionFeatures, overlaySize }: PersonBoxOverl
                 height: box.height
               }
             ]}
-          />
+          >
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
+          </View>
         );
       })}
     </>
@@ -71,8 +76,40 @@ const styles = StyleSheet.create({
   box: {
     position: "absolute",
     borderWidth: 2,
-    borderColor: "#40f4c8",
-    borderRadius: 4,
-    backgroundColor: "rgba(64,244,200,0.05)"
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,0.88)",
+    borderRadius: 7,
+    backgroundColor: "rgba(255,255,255,0.025)",
+    transform: [{ rotate: "-0.4deg" }]
+  },
+  corner: {
+    position: "absolute",
+    width: 24,
+    height: 24,
+    borderColor: "rgba(255,255,255,0.96)"
+  },
+  topLeft: {
+    left: -3,
+    top: -3,
+    borderLeftWidth: 3,
+    borderTopWidth: 3
+  },
+  topRight: {
+    right: -3,
+    top: -3,
+    borderRightWidth: 3,
+    borderTopWidth: 3
+  },
+  bottomLeft: {
+    left: -3,
+    bottom: -3,
+    borderLeftWidth: 3,
+    borderBottomWidth: 3
+  },
+  bottomRight: {
+    right: -3,
+    bottom: -3,
+    borderRightWidth: 3,
+    borderBottomWidth: 3
   }
 });

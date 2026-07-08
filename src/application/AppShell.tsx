@@ -6,7 +6,6 @@ import { AppBottomTabs } from "@/ui/AppBottomTabs";
 import { AppRoute } from "./navigation";
 import { appConfig } from "@/config";
 import { CameraWorkspace } from "@/screens/CameraWorkspace";
-import { CoachScreen } from "@/screens/CoachScreen";
 import { HomeScreen } from "@/screens/HomeScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { useCameraFrameSampler } from "@/camera/useCameraFrameSampler";
@@ -43,7 +42,6 @@ export function AppShell() {
     <View style={styles.root}>
       <StatusBar barStyle={route === "camera" ? "light-content" : "dark-content"} />
       {route === "home" ? <HomeScreen onNavigate={setRoute} /> : null}
-      {route === "coach" ? <CoachScreen onNavigate={setRoute} /> : null}
       {route === "profile" ? <ProfileScreen /> : null}
       {route === "camera" ? (
         <CameraWorkspace
@@ -60,7 +58,7 @@ export function AppShell() {
           onBack={() => setRoute("home")}
         />
       ) : null}
-      <AppBottomTabs activeRoute={route} onChange={setRoute} />
+      {route !== "camera" ? <AppBottomTabs activeRoute={route} onChange={setRoute} /> : null}
     </View>
   );
 }
