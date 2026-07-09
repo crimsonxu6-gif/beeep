@@ -13,6 +13,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export const appConfig = {
+  debugPanel: process.env.EXPO_PUBLIC_DEBUG_PANEL === "1",
   sampleFps: clamp(numberFromEnv("EXPO_PUBLIC_SAMPLE_FPS", 2), 2, 5),
   aiTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_AI_TIMEOUT_MS", 280), 120, 1200),
   mediaPipeVisionApiUrl: process.env.EXPO_PUBLIC_MEDIAPIPE_VISION_API_URL,

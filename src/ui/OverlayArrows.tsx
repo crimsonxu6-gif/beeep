@@ -1,7 +1,7 @@
 import { StyleSheet, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
-import { GuidanceOutput, MoveDirection } from "@/types/guidance";
+import { GuidanceAction, GuidanceOutput, MoveDirection } from "@/types/guidance";
 import { GuidanceVisualVariant } from "./guidanceVisuals";
 
 interface OverlayArrowsProps {
@@ -10,12 +10,33 @@ interface OverlayArrowsProps {
 }
 
 function primaryDirection(guidance: GuidanceOutput | null | undefined): MoveDirection {
-  const moveAction = guidance?.actions[0];
-  if (moveAction?.type === "move_camera") {
-    return moveAction.direction;
+  const action = guidance?.actions[0];
+  if (!action) {
+    return "hold";
+  }
+
+  if (action.type === "move_camera") {
+    return action.direction;
+  }
+
+  if (action.type === "adjust_distance") {
+    return action.direction === "closer" ? "forward" : "back";
+  }
+
+  if (action.type === "adjust_angle") {
+    if (action.direction === "lower") {
+      return "down";
+    }
+    if (action.direction === "raise") {
+      return "up";
+    }
   }
 
   return "hold";
+}
+
+function shouldShowArrow(action: GuidanceAction | undefined): boolean {
+  return Boolean(action && ["move_camera", "adjust_distance", "adjust_angle"].includes(action.type));
 }
 
 function positionStyle(direction: MoveDirection) {
@@ -121,6 +142,11 @@ function ArrowDecoration({ variant }: { variant: GuidanceVisualVariant }) {
 }
 
 export function OverlayArrows({ guidance, variant }: OverlayArrowsProps) {
+  const action = guidance?.actions[0];
+  if (!shouldShowArrow(action)) {
+    return null;
+  }
+
   const direction = primaryDirection(guidance);
 
   if (direction === "hold") {

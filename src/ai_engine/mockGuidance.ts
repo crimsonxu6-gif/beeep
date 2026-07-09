@@ -36,12 +36,21 @@ export function createMockGuidance(features: VisionFeatures): GuidanceOutput {
   const direction = directionFromSubject(features);
   const actions: GuidanceOutput["actions"] = [];
   let priority: GuidanceOutput["priority"] = "composition";
+  let problem: GuidanceOutput["problem"] = {
+    type: "subject_position",
+    description: "主体偏移"
+  };
+  let reason = "主体中心偏离画面中线";
   let summary = "主体偏移";
 
   if (features.scene.brightness === "backlight") {
     return {
       frameId: features.frameId,
       priority: "lighting",
+      problem: {
+        type: "backlight",
+        description: "人物逆光"
+      },
       actions: [
         {
           type: "lighting_hint",
@@ -49,12 +58,14 @@ export function createMockGuidance(features: VisionFeatures): GuidanceOutput {
           confidence: 0.82
         }
       ],
+      message: "转向光源",
+      reason: "背景亮度高于人脸区域",
       summary: "人物逆光",
       confidence: 0.82
     };
   }
 
-  if (direction !== "hold") {
+  if (direction !== "hold" && direction !== "forward" && direction !== "back") {
     actions.push({
       type: "move_camera",
       direction,
@@ -64,17 +75,28 @@ export function createMockGuidance(features: VisionFeatures): GuidanceOutput {
   }
 
   if (features.face.size === "small" && actions.length < 2) {
+    priority = "distance";
+    problem = {
+      type: "subject_too_small",
+      description: "人物太小"
+    };
+    reason = "人脸占画面比例偏小";
+    summary = "人物太小";
     actions.push({
-      type: "move_camera",
-      direction: "forward",
+      type: "adjust_distance",
+      direction: "closer",
       message: "靠近一点",
       confidence: 0.74
     });
-    summary = "人物太小";
   }
 
   if (actions.length === 0) {
     priority = "hold";
+    problem = {
+      type: "none",
+      description: "画面稳定"
+    };
+    reason = "没有明显构图或光线问题";
     summary = "画面稳定";
     actions.push({
       type: "hold",
@@ -86,7 +108,10 @@ export function createMockGuidance(features: VisionFeatures): GuidanceOutput {
   return {
     frameId: features.frameId,
     priority,
+    problem,
     actions: actions.slice(0, 2),
+    message: actions[0]?.message ?? "保持角度",
+    reason,
     summary,
     confidence: 0.78
   };

@@ -1,15 +1,28 @@
 import {
   ActionStrength,
+  AngleDirection,
+  DistanceDirection,
   GuidanceAction,
   GuidanceOutput,
   GuidancePriority,
   MoveDirection
 } from "@/types/guidance";
 
-const actionTypes = new Set(["move_camera", "adjust_pose", "framing_hint", "lighting_hint", "hold"]);
-const directions = new Set(["left", "right", "up", "down", "forward", "back", "hold"]);
+const actionTypes = new Set([
+  "move_camera",
+  "adjust_pose",
+  "framing_hint",
+  "lighting_hint",
+  "adjust_distance",
+  "adjust_angle",
+  "hold"
+]);
+const moveDirections = new Set(["left", "right", "up", "down"]);
+const legacyDirections = new Set(["left", "right", "up", "down", "forward", "back", "hold"]);
+const distanceDirections = new Set(["closer", "farther"]);
+const angleDirections = new Set(["lower", "raise", "tilt_left", "tilt_right", "straighten"]);
 const strengths = new Set(["low", "medium", "high"]);
-const priorities = new Set(["subject", "lighting", "composition", "pose", "camera", "hold"]);
+const priorities = new Set(["subject", "lighting", "composition", "pose", "camera", "distance", "angle", "hold"]);
 
 export class GuidanceParseError extends Error {
   constructor(message: string) {
@@ -53,8 +66,20 @@ function normalizeStrength(value: unknown): ActionStrength {
   return strengths.has(String(value)) ? (String(value) as ActionStrength) : "medium";
 }
 
-function normalizeDirection(value: unknown): MoveDirection {
-  return directions.has(String(value)) ? (String(value) as MoveDirection) : "hold";
+function normalizeMoveDirection(value: unknown): "left" | "right" | "up" | "down" {
+  return moveDirections.has(String(value)) ? (String(value) as "left" | "right" | "up" | "down") : "left";
+}
+
+function normalizeLegacyDirection(value: unknown): MoveDirection {
+  return legacyDirections.has(String(value)) ? (String(value) as MoveDirection) : "hold";
+}
+
+function normalizeDistanceDirection(value: unknown): DistanceDirection {
+  return distanceDirections.has(String(value)) ? (String(value) as DistanceDirection) : "closer";
+}
+
+function normalizeAngleDirection(value: unknown): AngleDirection {
+  return angleDirections.has(String(value)) ? (String(value) as AngleDirection) : "lower";
 }
 
 function normalizePriority(value: unknown): GuidancePriority | undefined {
@@ -67,6 +92,14 @@ function normalizeMessage(value: unknown): string {
 
 function normalizeInstruction(value: unknown): string {
   return typeof value === "string" ? value.trim().slice(0, 48) : "";
+}
+
+function normalizeReason(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  return value.trim().slice(0, 80) || undefined;
 }
 
 function messageFromInstruction(value: unknown): string {
@@ -117,6 +150,22 @@ function fallbackMoveMessage(direction: MoveDirection): string {
   return text[direction];
 }
 
+function fallbackDistanceMessage(direction: DistanceDirection): string {
+  return direction === "closer" ? "靠近一点" : "后退一点";
+}
+
+function fallbackAngleMessage(direction: AngleDirection): string {
+  const text = {
+    lower: "手机低一点",
+    raise: "手机高一点",
+    tilt_left: "左倾一点",
+    tilt_right: "右倾一点",
+    straighten: "摆正手机"
+  } as const;
+
+  return text[direction];
+}
+
 function actionMessage(action: Record<string, unknown>, fallback: string): string {
   return normalizeMessage(action.message) || messageFromInstruction(action.instruction) || fallback;
 }
@@ -136,6 +185,22 @@ function withOptionalMetadata<T extends GuidanceAction>(
   return action;
 }
 
+function legacyDistanceAction(direction: MoveDirection, raw: Record<string, unknown>): GuidanceAction | null {
+  if (direction !== "forward" && direction !== "back") {
+    return null;
+  }
+
+  const distanceDirection: DistanceDirection = direction === "forward" ? "closer" : "farther";
+  return withOptionalMetadata(
+    {
+      type: "adjust_distance",
+      direction: distanceDirection,
+      message: actionMessage(raw, fallbackDistanceMessage(distanceDirection))
+    },
+    raw
+  );
+}
+
 function validateAction(value: unknown): GuidanceAction | null {
   const action = asRecord(value);
   const type = String(action.type);
@@ -144,12 +209,42 @@ function validateAction(value: unknown): GuidanceAction | null {
   }
 
   if (type === "move_camera") {
-    const direction = normalizeDirection(action.direction);
+    const legacyDirection = normalizeLegacyDirection(action.direction);
+    const distanceAction = legacyDistanceAction(legacyDirection, action);
+    if (distanceAction) {
+      return distanceAction;
+    }
+
+    const direction = normalizeMoveDirection(legacyDirection);
     return withOptionalMetadata(
       {
         type,
         direction,
         message: actionMessage(action, fallbackMoveMessage(direction))
+      },
+      action
+    );
+  }
+
+  if (type === "adjust_distance") {
+    const direction = normalizeDistanceDirection(action.direction);
+    return withOptionalMetadata(
+      {
+        type,
+        direction,
+        message: actionMessage(action, fallbackDistanceMessage(direction))
+      },
+      action
+    );
+  }
+
+  if (type === "adjust_angle") {
+    const direction = normalizeAngleDirection(action.direction);
+    return withOptionalMetadata(
+      {
+        type,
+        direction,
+        message: actionMessage(action, fallbackAngleMessage(direction))
       },
       action
     );
@@ -209,10 +304,26 @@ function validateAction(value: unknown): GuidanceAction | null {
   };
 
   if (action.direction) {
-    framingAction.direction = normalizeDirection(action.direction);
+    framingAction.direction = normalizeLegacyDirection(action.direction);
   }
 
   return withOptionalMetadata(framingAction, action);
+}
+
+function normalizeProblem(value: unknown): GuidanceOutput["problem"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const problem = value as Record<string, unknown>;
+  const type = typeof problem.type === "string" ? problem.type.trim().slice(0, 40) : "";
+  const description = typeof problem.description === "string" ? problem.description.trim().slice(0, 48) : "";
+
+  if (!type || !description) {
+    return undefined;
+  }
+
+  return { type, description };
 }
 
 export function validateGuidanceOutput(value: unknown): GuidanceOutput {
@@ -234,9 +345,26 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
     confidence: Math.min(1, Math.max(0, confidence))
   };
 
+  const topLevelMessage = normalizeMessage(root.message);
+  if (topLevelMessage) {
+    output.message = topLevelMessage;
+  } else if (output.actions[0]) {
+    output.message = output.actions[0].message;
+  }
+
   const priority = normalizePriority(root.priority);
   if (priority) {
     output.priority = priority;
+  }
+
+  const problem = normalizeProblem(root.problem);
+  if (problem) {
+    output.problem = problem;
+  }
+
+  const reason = normalizeReason(root.reason);
+  if (reason) {
+    output.reason = reason;
   }
 
   if (typeof root.frame_id === "number") {

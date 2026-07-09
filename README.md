@@ -92,6 +92,10 @@ The service must return strict JSON:
 ```json
 {
   "priority": "composition",
+  "problem": {
+    "type": "subject_position",
+    "description": "主体偏右"
+  },
   "actions": [
     {
       "type": "move_camera",
@@ -100,6 +104,8 @@ The service must return strict JSON:
       "confidence": 0.85
     }
   ],
+  "message": "往左一点",
+  "reason": "主体中心位于画面右侧",
   "summary": "主体偏右",
   "confidence": 0.85
 }
@@ -109,8 +115,10 @@ Rules:
 
 - Return at most 2 actions.
 - `message` must be Chinese, immediately actionable, and no more than 10 characters.
+- `problem` and `reason` are for developer debugging; the user only sees `message`.
 - Prefer one strongest action over a list of comments.
 - If the frame is good, return `{ "type": "hold", "message": "保持角度" }`.
+- Additional action types include `lighting_hint`, `adjust_distance`, `adjust_angle`, and `hold`.
 
 Optional batch endpoint: set `EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL`; it receives `{ "requests": [...] }` and returns an array of guidance objects.
 
@@ -121,6 +129,14 @@ Optional batch endpoint: set `EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL`; it receive
 - `src/ai_engine`: prompt manager, HTTP client, batch interface, strict JSON parser, mock engine.
 - `src/stability`: multi-frame consistency, confidence threshold, debounce, bbox smoothing.
 - `src/ui`: camera overlay arrows and <=10 character action message.
+
+## Developer debug panel
+
+Set `EXPO_PUBLIC_DEBUG_PANEL=1` to overlay developer diagnostics in the camera:
+
+- latency and processing state
+- summarized MediaPipe vision features
+- current action, priority, problem, and reason
 
 ## UI direction
 

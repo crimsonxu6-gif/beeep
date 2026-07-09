@@ -32,6 +32,10 @@ Guidance output is product-oriented, not a photo critique:
 ```json
 {
   "priority": "lighting",
+  "problem": {
+    "type": "backlight",
+    "description": "人物逆光"
+  },
   "actions": [
     {
       "type": "lighting_hint",
@@ -39,6 +43,8 @@ Guidance output is product-oriented, not a photo critique:
       "confidence": 0.86
     }
   ],
+  "message": "转向光源",
+  "reason": "背景亮度明显高于主体区域",
   "summary": "人物逆光",
   "confidence": 0.86
 }
@@ -48,7 +54,8 @@ Rules:
 
 - Return at most 2 actions.
 - `message` is Chinese and no more than 10 characters.
-- Allowed action types: `move_camera`, `adjust_pose`, `framing_hint`, `lighting_hint`, `hold`.
+- `problem` and `reason` are for developer debugging.
+- Allowed action types: `move_camera`, `adjust_pose`, `framing_hint`, `lighting_hint`, `adjust_distance`, `adjust_angle`, `hold`.
 
 `/guidance` computes MediaPipe features internally when `vision_features` is not
 provided. The rule-based `ShutterMuseGuidanceEngine` is intentionally isolated

@@ -11,6 +11,10 @@ function actionSignature(action: GuidanceAction): string {
     return `${action.type}:${action.direction}:${action.message}`;
   }
 
+  if (action.type === "adjust_distance" || action.type === "adjust_angle") {
+    return `${action.type}:${action.direction}:${action.message}`;
+  }
+
   return `${action.type}:${action.message.toLowerCase().trim()}`;
 }
 

@@ -1,7 +1,21 @@
-export type GuidanceActionType = "move_camera" | "adjust_pose" | "framing_hint" | "lighting_hint" | "hold";
-export type GuidancePriority = "subject" | "lighting" | "composition" | "pose" | "camera" | "hold";
+export type GuidanceActionType =
+  | "move_camera"
+  | "adjust_pose"
+  | "framing_hint"
+  | "lighting_hint"
+  | "adjust_distance"
+  | "adjust_angle"
+  | "hold";
+export type GuidancePriority = "subject" | "lighting" | "composition" | "pose" | "camera" | "distance" | "angle" | "hold";
 export type MoveDirection = "left" | "right" | "up" | "down" | "forward" | "back" | "hold";
+export type AngleDirection = "lower" | "raise" | "tilt_left" | "tilt_right" | "straighten";
+export type DistanceDirection = "closer" | "farther";
 export type ActionStrength = "low" | "medium" | "high";
+
+export interface GuidanceProblem {
+  type: string;
+  description: string;
+}
 
 export interface GuidanceActionBase {
   message: string;
@@ -11,7 +25,17 @@ export interface GuidanceActionBase {
 
 export interface MoveCameraAction extends GuidanceActionBase {
   type: "move_camera";
-  direction: MoveDirection;
+  direction: Exclude<MoveDirection, "forward" | "back" | "hold">;
+}
+
+export interface AdjustDistanceAction extends GuidanceActionBase {
+  type: "adjust_distance";
+  direction: DistanceDirection;
+}
+
+export interface AdjustAngleAction extends GuidanceActionBase {
+  type: "adjust_angle";
+  direction: AngleDirection;
 }
 
 export interface AdjustPoseAction extends GuidanceActionBase {
@@ -36,6 +60,8 @@ export interface HoldAction extends GuidanceActionBase {
 
 export type GuidanceAction =
   | MoveCameraAction
+  | AdjustDistanceAction
+  | AdjustAngleAction
   | AdjustPoseAction
   | FramingHintAction
   | LightingHintAction
@@ -44,6 +70,9 @@ export type GuidanceAction =
 export interface GuidanceOutput {
   frameId?: number;
   priority?: GuidancePriority;
+  problem?: GuidanceProblem;
+  reason?: string;
+  message?: string;
   actions: GuidanceAction[];
   summary: string;
   confidence: number;

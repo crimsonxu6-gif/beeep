@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from schemas import (
+    AdjustAngleAction,
+    AdjustDistanceAction,
     AdjustPoseAction,
     FramingHintAction,
     GuidanceAction,
     GuidanceOutput,
+    GuidanceProblem,
     HoldAction,
     LightingHintAction,
     MoveCameraAction,
@@ -23,6 +26,10 @@ def _keypoint(features: VisionFeatures, name: str) -> PoseKeypoint | None:
     return None
 
 
+def _problem(problem_type: str, description: str) -> GuidanceProblem:
+    return GuidanceProblem(type=problem_type, description=description)
+
+
 def _move(direction: str, message: str, confidence: float) -> MoveCameraAction:
     return MoveCameraAction(
         type="move_camera",
@@ -36,6 +43,8 @@ class ShutterMuseGuidanceEngine:
     def infer(self, features: VisionFeatures) -> GuidanceOutput:
         actions: list[GuidanceAction] = []
         priority = "composition"
+        problem = _problem("none", "画面稳定")
+        reason = "没有明显构图或光线问题"
         summary = "画面稳定"
         confidence = 0.78
 
@@ -44,6 +53,7 @@ class ShutterMuseGuidanceEngine:
             return GuidanceOutput(
                 frameId=features.frameId,
                 priority="subject",
+                problem=_problem("subject_missing", "未检测到主体"),
                 actions=[
                     FramingHintAction(
                         type="framing_hint",
@@ -51,6 +61,8 @@ class ShutterMuseGuidanceEngine:
                         confidence=0.58,
                     )
                 ],
+                message="寻找主体",
+                reason="画面中没有稳定的人物或主体框",
                 summary="未检测到主体",
                 confidence=0.58,
             )
@@ -59,6 +71,7 @@ class ShutterMuseGuidanceEngine:
             return GuidanceOutput(
                 frameId=features.frameId,
                 priority="lighting",
+                problem=_problem("backlight", "人物逆光"),
                 actions=[
                     LightingHintAction(
                         type="lighting_hint",
@@ -66,6 +79,8 @@ class ShutterMuseGuidanceEngine:
                         confidence=0.86,
                     )
                 ],
+                message="转向光源",
+                reason="背景亮度明显高于主体区域",
                 summary="人物逆光",
                 confidence=0.86,
             )
@@ -74,6 +89,7 @@ class ShutterMuseGuidanceEngine:
             return GuidanceOutput(
                 frameId=features.frameId,
                 priority="lighting",
+                problem=_problem("low_light", "画面偏暗"),
                 actions=[
                     LightingHintAction(
                         type="lighting_hint",
@@ -81,6 +97,8 @@ class ShutterMuseGuidanceEngine:
                         confidence=0.78,
                     )
                 ],
+                message="提高曝光",
+                reason="画面平均亮度偏低",
                 summary="画面偏暗",
                 confidence=0.78,
             )
@@ -91,30 +109,49 @@ class ShutterMuseGuidanceEngine:
 
         if center_x < 0.43:
             actions.append(_move("left", "往左一点", 0.82))
+            problem = _problem("subject_position", "主体偏左")
+            reason = "主体中心位于画面左侧"
             summary = "主体偏左"
         elif center_x > 0.57:
             actions.append(_move("right", "往右一点", 0.82))
+            problem = _problem("subject_position", "主体偏右")
+            reason = "主体中心位于画面右侧"
             summary = "主体偏右"
 
         if not actions and center_y < 0.34:
-            actions.append(_move("up", "抬高一点", 0.74))
+            actions.append(AdjustAngleAction(type="adjust_angle", direction="raise", message="手机高一点", confidence=0.74))
+            priority = "angle"
+            problem = _problem("camera_angle", "下方空间多")
+            reason = "主体位置偏上，下方留白过多"
             summary = "下方空间多"
         elif not actions and center_y > 0.7:
-            actions.append(_move("down", "压低一点", 0.74))
+            actions.append(AdjustAngleAction(type="adjust_angle", direction="lower", message="手机低一点", confidence=0.74))
+            priority = "angle"
+            problem = _problem("camera_angle", "主体偏低")
+            reason = "主体位置偏下，需要降低手机取景"
             summary = "主体偏低"
 
         if len(actions) < 2 and features.face.size == "small":
-            actions.append(_move("forward", "靠近一点", 0.76))
+            actions.append(AdjustDistanceAction(type="adjust_distance", direction="closer", message="靠近一点", confidence=0.76))
+            priority = "distance" if not actions[:-1] else priority
+            problem = _problem("subject_too_small", "人物太小")
+            reason = "人脸或主体占画面比例偏小"
             summary = "人物太小"
         elif len(actions) < 2 and features.face.size == "large":
-            actions.append(_move("back", "后退一点", 0.72))
+            actions.append(AdjustDistanceAction(type="adjust_distance", direction="farther", message="后退一点", confidence=0.72))
+            priority = "distance" if not actions[:-1] else priority
+            problem = _problem("subject_too_large", "距离太近")
+            reason = "人脸或主体占画面比例偏大"
             summary = "距离太近"
 
         if actions:
             return GuidanceOutput(
                 frameId=features.frameId,
                 priority=priority,
+                problem=problem,
                 actions=actions[:2],
+                message=actions[0].message,
+                reason=reason,
                 summary=summary,
                 confidence=max(action.confidence or 0.7 for action in actions[:2]),
             )
@@ -128,6 +165,7 @@ class ShutterMuseGuidanceEngine:
                 return GuidanceOutput(
                     frameId=features.frameId,
                     priority="pose",
+                    problem=_problem("shoulder_tilt", "肩膀不平"),
                     actions=[
                         AdjustPoseAction(
                             type="adjust_pose",
@@ -135,6 +173,8 @@ class ShutterMuseGuidanceEngine:
                             confidence=0.72,
                         )
                     ],
+                    message="肩膀放松",
+                    reason="左右肩膀高度差明显",
                     summary="肩膀不平",
                     confidence=0.72,
                 )
@@ -146,6 +186,7 @@ class ShutterMuseGuidanceEngine:
                     return GuidanceOutput(
                         frameId=features.frameId,
                         priority="pose",
+                        problem=_problem("head_direction", "头部偏右"),
                         actions=[
                             AdjustPoseAction(
                                 type="adjust_pose",
@@ -153,6 +194,8 @@ class ShutterMuseGuidanceEngine:
                                 confidence=0.7,
                             )
                         ],
+                        message="头左一点",
+                        reason="鼻尖相对肩膀中心偏右",
                         summary="头部偏右",
                         confidence=0.7,
                     )
@@ -160,6 +203,7 @@ class ShutterMuseGuidanceEngine:
                     return GuidanceOutput(
                         frameId=features.frameId,
                         priority="pose",
+                        problem=_problem("head_direction", "头部偏左"),
                         actions=[
                             AdjustPoseAction(
                                 type="adjust_pose",
@@ -167,6 +211,8 @@ class ShutterMuseGuidanceEngine:
                                 confidence=0.7,
                             )
                         ],
+                        message="头右一点",
+                        reason="鼻尖相对肩膀中心偏左",
                         summary="头部偏左",
                         confidence=0.7,
                     )
@@ -175,6 +221,7 @@ class ShutterMuseGuidanceEngine:
             return GuidanceOutput(
                 frameId=features.frameId,
                 priority="composition",
+                problem=_problem("background_clutter", "背景干扰"),
                 actions=[
                     FramingHintAction(
                         type="framing_hint",
@@ -182,6 +229,8 @@ class ShutterMuseGuidanceEngine:
                         confidence=0.68,
                     )
                 ],
+                message="背景简洁",
+                reason="边缘密度高，背景元素较杂",
                 summary="背景干扰",
                 confidence=0.68,
             )
@@ -189,6 +238,7 @@ class ShutterMuseGuidanceEngine:
         return GuidanceOutput(
             frameId=features.frameId,
             priority="hold",
+            problem=problem,
             actions=[
                 HoldAction(
                     type="hold",
@@ -196,6 +246,8 @@ class ShutterMuseGuidanceEngine:
                     confidence=0.84,
                 )
             ],
-            summary="画面稳定",
+            message="保持角度",
+            reason=reason,
+            summary=summary,
             confidence=0.84,
         )

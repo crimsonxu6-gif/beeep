@@ -21,6 +21,20 @@ function fallbackMessage(action: GuidanceAction): string {
     return "姿势微调";
   }
 
+  if (action.type === "adjust_distance") {
+    return action.direction === "closer" ? "靠近一点" : "后退一点";
+  }
+
+  if (action.type === "adjust_angle") {
+    return {
+      lower: "手机低一点",
+      raise: "手机高一点",
+      tilt_left: "左倾一点",
+      tilt_right: "右倾一点",
+      straighten: "摆正手机"
+    }[action.direction];
+  }
+
   if (action.type === "lighting_hint") {
     return "调整光线";
   }

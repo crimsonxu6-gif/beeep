@@ -3,6 +3,8 @@ import Svg, { Line } from "react-native-svg";
 
 import { StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
+import { appConfig } from "@/config";
+import { GuidanceDebugPanel } from "./GuidanceDebugPanel";
 import { guidanceToInstruction } from "@/ui/instructionFormatter";
 import { InstructionText } from "@/ui/InstructionText";
 import { OverlayArrows } from "@/ui/OverlayArrows";
@@ -62,6 +64,7 @@ function RuleOfThirdsGrid({ width, height }: OverlaySize) {
 
 export function GuidanceOverlay({
   stableGuidance,
+  visionFeatures,
   overlaySize,
   processing,
   latencyMs,
@@ -82,6 +85,14 @@ export function GuidanceOverlay({
         error={error}
         variant={visualVariant}
       />
+      {appConfig.debugPanel ? (
+        <GuidanceDebugPanel
+          stableGuidance={stableGuidance}
+          visionFeatures={visionFeatures}
+          latencyMs={latencyMs}
+          processing={processing}
+        />
+      ) : null}
     </View>
   );
 }
