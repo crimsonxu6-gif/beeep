@@ -122,6 +122,23 @@ Rules:
 
 Optional batch endpoint: set `EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL`; it receives `{ "requests": [...] }` and returns an array of guidance objects.
 
+## Real ShutterMuse backend mode
+
+The mobile app does not embed ShutterMuse. Keep ShutterMuse behind the FastAPI
+backend and switch the backend mode when model weights are available:
+
+```bash
+BEEEP_GUIDANCE_ENGINE=shuttermuse
+SHUTTERMUSE_REPO_PATH=D:\models\ShutterMuse
+SHUTTERMUSE_MODEL_PATH=D:\models\Qwen3-VL-8B-Instruct
+SHUTTERMUSE_LORA_PATH=D:\models\ShutterMuse-LoRA
+SHUTTERMUSE_DEVICE=cuda
+```
+
+Default mode remains `BEEEP_GUIDANCE_ENGINE=rule`, so local mobile previews keep
+working without GPU dependencies. Check the active backend mode with
+`GET /guidance/status`.
+
 ## Modules
 
 - `src/camera`: 2-5 FPS frame sampling, no per-frame LLM calls.
