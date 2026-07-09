@@ -8,10 +8,10 @@ interface StabilityFilterOptions {
 
 function actionSignature(action: GuidanceAction): string {
   if (action.type === "move_camera") {
-    return `${action.type}:${action.direction}:${action.strength}`;
+    return `${action.type}:${action.direction}:${action.message}`;
   }
 
-  return `${action.type}:${action.instruction.toLowerCase().trim()}:${action.strength ?? "medium"}`;
+  return `${action.type}:${action.message.toLowerCase().trim()}`;
 }
 
 function guidanceSignature(guidance: GuidanceOutput): string {

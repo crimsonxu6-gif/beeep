@@ -27,6 +27,29 @@ EXPO_PUBLIC_SHUTTERMUSE_API_URL=http://192.168.0.106:8000/guidance
 - `POST /vision/features`: `image + frame_id -> VisionFeatures`
 - `POST /guidance`: `image + optional vision_features -> GuidanceOutput`
 
+Guidance output is product-oriented, not a photo critique:
+
+```json
+{
+  "priority": "lighting",
+  "actions": [
+    {
+      "type": "lighting_hint",
+      "message": "转向光源",
+      "confidence": 0.86
+    }
+  ],
+  "summary": "人物逆光",
+  "confidence": 0.86
+}
+```
+
+Rules:
+
+- Return at most 2 actions.
+- `message` is Chinese and no more than 10 characters.
+- Allowed action types: `move_camera`, `adjust_pose`, `framing_hint`, `lighting_hint`, `hold`.
+
 `/guidance` computes MediaPipe features internally when `vision_features` is not
 provided. The rule-based `ShutterMuseGuidanceEngine` is intentionally isolated
 in `backend/model/shuttermuse.py` so it can later be replaced by the real

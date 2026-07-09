@@ -10,14 +10,9 @@ interface OverlayArrowsProps {
 }
 
 function primaryDirection(guidance: GuidanceOutput | null | undefined): MoveDirection {
-  const moveAction = guidance?.actions.find((action) => action.type === "move_camera");
+  const moveAction = guidance?.actions[0];
   if (moveAction?.type === "move_camera") {
     return moveAction.direction;
-  }
-
-  const framingAction = guidance?.actions.find((action) => action.type === "framing_hint");
-  if (framingAction?.type === "framing_hint" && framingAction.direction) {
-    return framingAction.direction;
   }
 
   return "hold";

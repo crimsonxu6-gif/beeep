@@ -11,7 +11,7 @@ Camera Input
   -> AI Guidance Engine (ShutterMuse HTTP API or local mock)
   -> Strict JSON Parser + Retry
   -> Stability Filter (debounce + consistency + smoothing)
-  -> UI Overlay (arrows + bbox + short instruction)
+  -> UI Overlay (direction arrows + short action message)
 ```
 
 ## Run
@@ -46,7 +46,7 @@ ends with `/guidance`, the app derives `/vision/features` automatically.
 The backend exposes:
 
 - `POST /vision/features`: MediaPipe face detection, person bbox, pose keypoints, scene features.
-- `POST /guidance`: strict `GuidanceOutput` JSON for `move_camera`, `adjust_pose`, and `framing_hint`.
+- `POST /guidance`: strict `GuidanceOutput` JSON for `move_camera`, `adjust_pose`, `framing_hint`, `lighting_hint`, and `hold`.
 
 ## Development build
 
@@ -91,17 +91,26 @@ The service must return strict JSON:
 
 ```json
 {
+  "priority": "composition",
   "actions": [
     {
       "type": "move_camera",
       "direction": "left",
-      "strength": "medium"
+      "message": "往左一点",
+      "confidence": 0.85
     }
   ],
-  "summary": "subject is off center",
-  "confidence": 0.82
+  "summary": "主体偏右",
+  "confidence": 0.85
 }
 ```
+
+Rules:
+
+- Return at most 2 actions.
+- `message` must be Chinese, immediately actionable, and no more than 10 characters.
+- Prefer one strongest action over a list of comments.
+- If the frame is good, return `{ "type": "hold", "message": "保持角度" }`.
 
 Optional batch endpoint: set `EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL`; it receives `{ "requests": [...] }` and returns an array of guidance objects.
 
@@ -111,7 +120,7 @@ Optional batch endpoint: set `EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL`; it receive
 - `src/vision`: MediaPipe backend adapter with mock fallback for face/person/pose/scene features.
 - `src/ai_engine`: prompt manager, HTTP client, batch interface, strict JSON parser, mock engine.
 - `src/stability`: multi-frame consistency, confidence threshold, debounce, bbox smoothing.
-- `src/ui`: camera overlay arrows, person box, and <=10 character instruction text.
+- `src/ui`: camera overlay arrows and <=10 character action message.
 
 ## UI direction
 

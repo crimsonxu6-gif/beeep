@@ -10,12 +10,12 @@ vision_processor = MediaPipeVisionProcessor()
 guidance_engine = ShutterMuseGuidanceEngine()
 
 
-@router.post("/vision/features", response_model=VisionFeatures)
+@router.post("/vision/features", response_model=VisionFeatures, response_model_exclude_none=True)
 def vision_features(request: VisionFeatureRequest) -> VisionFeatures:
     return vision_processor.extract_features(request)
 
 
-@router.post("/guidance", response_model=GuidanceOutput)
+@router.post("/guidance", response_model=GuidanceOutput, response_model_exclude_none=True)
 def guidance(request: GuidanceRequest) -> GuidanceOutput:
     features = request.vision_features
     if features is None:

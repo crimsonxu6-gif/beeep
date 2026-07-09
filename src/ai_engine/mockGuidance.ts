@@ -20,48 +20,74 @@ function directionFromSubject(features: VisionFeatures): MoveDirection {
   return "hold";
 }
 
+function moveMessage(direction: MoveDirection): string {
+  return {
+    left: "往左一点",
+    right: "往右一点",
+    up: "抬高一点",
+    down: "压低一点",
+    forward: "靠近一点",
+    back: "后退一点",
+    hold: "保持角度"
+  }[direction];
+}
+
 export function createMockGuidance(features: VisionFeatures): GuidanceOutput {
   const direction = directionFromSubject(features);
   const actions: GuidanceOutput["actions"] = [];
+  let priority: GuidanceOutput["priority"] = "composition";
+  let summary = "主体偏移";
+
+  if (features.scene.brightness === "backlight") {
+    return {
+      frameId: features.frameId,
+      priority: "lighting",
+      actions: [
+        {
+          type: "lighting_hint",
+          message: "转向光源",
+          confidence: 0.82
+        }
+      ],
+      summary: "人物逆光",
+      confidence: 0.82
+    };
+  }
 
   if (direction !== "hold") {
     actions.push({
       type: "move_camera",
       direction,
-      strength: "medium"
+      message: moveMessage(direction),
+      confidence: 0.78
     });
   }
 
-  if (features.face.size === "small") {
+  if (features.face.size === "small" && actions.length < 2) {
     actions.push({
       type: "move_camera",
       direction: "forward",
-      strength: "low"
+      message: "靠近一点",
+      confidence: 0.74
     });
-  }
-
-  if (features.scene.brightness === "backlight") {
-    actions.push({
-      type: "framing_hint",
-      instruction: "avoid backlight",
-      direction: "hold",
-      strength: "medium"
-    });
+    summary = "人物太小";
   }
 
   if (actions.length === 0) {
+    priority = "hold";
+    summary = "画面稳定";
     actions.push({
-      type: "framing_hint",
-      instruction: "hold steady",
-      direction: "hold",
-      strength: "low"
+      type: "hold",
+      message: "保持角度",
+      confidence: 0.82
     });
   }
 
   return {
     frameId: features.frameId,
+    priority,
     actions: actions.slice(0, 2),
-    summary: direction === "hold" ? "composition is stable" : "subject is off center",
+    summary,
     confidence: 0.78
   };
 }

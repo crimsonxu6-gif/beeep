@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 ActionStrength = Literal["low", "medium", "high"]
+GuidancePriority = Literal["subject", "lighting", "composition", "pose", "camera", "hold"]
 MoveDirection = Literal["left", "right", "up", "down", "forward", "back", "hold"]
 FacePosition = Literal["left", "center", "right", "unknown"]
 FaceSize = Literal["small", "medium", "large", "unknown"]
@@ -68,30 +69,39 @@ class GuidanceRequest(VisionFeatureRequest):
     vision_features: VisionFeatures | None = Field(default=None, alias="vision_features")
 
 
-class MoveCameraAction(BaseModel):
+class GuidanceActionBase(BaseModel):
+    message: str = Field(max_length=10)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    strength: ActionStrength | None = None
+
+
+class MoveCameraAction(GuidanceActionBase):
     type: Literal["move_camera"]
-    direction: MoveDirection
-    strength: ActionStrength
+    direction: Literal["left", "right", "up", "down", "forward", "back"]
 
 
-class AdjustPoseAction(BaseModel):
+class AdjustPoseAction(GuidanceActionBase):
     type: Literal["adjust_pose"]
-    instruction: str
-    strength: ActionStrength | None = None
 
 
-class FramingHintAction(BaseModel):
+class FramingHintAction(GuidanceActionBase):
     type: Literal["framing_hint"]
-    instruction: str
-    direction: MoveDirection | None = None
-    strength: ActionStrength | None = None
 
 
-GuidanceAction = MoveCameraAction | AdjustPoseAction | FramingHintAction
+class LightingHintAction(GuidanceActionBase):
+    type: Literal["lighting_hint"]
+
+
+class HoldAction(GuidanceActionBase):
+    type: Literal["hold"]
+
+
+GuidanceAction = MoveCameraAction | AdjustPoseAction | FramingHintAction | LightingHintAction | HoldAction
 
 
 class GuidanceOutput(BaseModel):
     frameId: int | None = None
-    actions: list[GuidanceAction]
-    summary: str
-    confidence: float
+    priority: GuidancePriority
+    actions: list[GuidanceAction] = Field(max_length=2)
+    summary: str = Field(max_length=32)
+    confidence: float = Field(ge=0, le=1)
