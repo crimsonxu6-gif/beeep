@@ -15,6 +15,7 @@ function clamp(value: number, min: number, max: number): number {
 export const appConfig = {
   sampleFps: clamp(numberFromEnv("EXPO_PUBLIC_SAMPLE_FPS", 2), 2, 5),
   aiTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_AI_TIMEOUT_MS", 280), 120, 1200),
+  mediaPipeVisionApiUrl: process.env.EXPO_PUBLIC_MEDIAPIPE_VISION_API_URL,
   shutterMuseApiUrl: process.env.EXPO_PUBLIC_SHUTTERMUSE_API_URL,
   shutterMuseBatchApiUrl: process.env.EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL,
   stability: {

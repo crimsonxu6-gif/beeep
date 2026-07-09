@@ -8,7 +8,7 @@ import { VisionSmoother } from "@/stability/smoothing";
 import { CapturedFrame } from "@/types/frame";
 import { StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
-import { PrototypeVisionPreprocessor } from "@/vision/preprocessing";
+import { MediaPipeVisionPreprocessor } from "@/vision/preprocessing";
 
 interface GuidanceControllerState {
   stableGuidance: StableGuidance | null;
@@ -16,6 +16,17 @@ interface GuidanceControllerState {
   latencyMs: number | null;
   processing: boolean;
   error: string | null;
+}
+
+function deriveVisionEndpoint(guidanceEndpoint: string | undefined): string | undefined {
+  const trimmed = guidanceEndpoint?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return trimmed.endsWith("/guidance")
+    ? trimmed.replace(/\/guidance$/, "/vision/features")
+    : undefined;
 }
 
 export function useGuidanceController(): GuidanceControllerState & {
@@ -30,7 +41,10 @@ export function useGuidanceController(): GuidanceControllerState & {
   const pipeline = useMemo(
     () =>
       new GuidancePipeline({
-        preprocessor: new PrototypeVisionPreprocessor(),
+        preprocessor: new MediaPipeVisionPreprocessor({
+          endpoint: appConfig.mediaPipeVisionApiUrl ?? deriveVisionEndpoint(appConfig.shutterMuseApiUrl),
+          timeoutMs: appConfig.aiTimeoutMs
+        }),
         client: new ShutterMuseHttpClient({
           endpoint: appConfig.shutterMuseApiUrl,
           batchEndpoint: appConfig.shutterMuseBatchApiUrl,

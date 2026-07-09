@@ -16,6 +16,12 @@ function clampInstruction(value: string): string {
 
 function poseInstruction(value: string): string {
   const text = value.toLowerCase();
+  if (text.includes("turn") && text.includes("right")) {
+    return "头右一点";
+  }
+  if (text.includes("turn") && text.includes("left")) {
+    return "头左一点";
+  }
   if (text.includes("head") && text.includes("right")) {
     return "头右一点";
   }
@@ -28,7 +34,41 @@ function poseInstruction(value: string): string {
   if (text.includes("shoulder")) {
     return "肩膀放松";
   }
+  if (text.includes("pose")) {
+    return "姿势微调";
+  }
   return value;
+}
+
+function framingInstruction(value: string): string {
+  const text = value.toLowerCase();
+  if (text.includes("backlight")) {
+    return "避开逆光";
+  }
+  if (text.includes("exposure")) {
+    return "提高曝光";
+  }
+  if (text.includes("background") || text.includes("clutter")) {
+    return "背景简洁";
+  }
+  if (text.includes("third")) {
+    return "靠近三分线";
+  }
+  if (text.includes("steady") || text.includes("hold")) {
+    return "很好保持";
+  }
+  if (text.includes("subject")) {
+    return "寻找主体";
+  }
+  return value;
+}
+
+function primaryAction(guidance: GuidanceOutput): GuidanceAction | undefined {
+  return (
+    guidance.actions.find((action) => action.type === "move_camera") ??
+    guidance.actions.find((action) => action.type === "adjust_pose") ??
+    guidance.actions.find((action) => action.type === "framing_hint")
+  );
 }
 
 function actionToInstruction(action: GuidanceAction): string {
@@ -44,19 +84,11 @@ function actionToInstruction(action: GuidanceAction): string {
     return moveText[action.direction];
   }
 
-  if (action.instruction.toLowerCase().includes("backlight")) {
-    return "避开逆光";
-  }
-
-  if (action.instruction.toLowerCase().includes("hold")) {
-    return "很好保持";
-  }
-
-  return action.instruction;
+  return framingInstruction(action.instruction);
 }
 
 export function guidanceToInstruction(guidance: GuidanceOutput | null | undefined): string {
-  const action = guidance?.actions[0];
+  const action = guidance ? primaryAction(guidance) : undefined;
   if (!action) {
     return "寻找主体";
   }

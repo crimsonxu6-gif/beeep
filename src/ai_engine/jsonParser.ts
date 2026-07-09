@@ -128,6 +128,8 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
 
   if (typeof root.frame_id === "number") {
     output.frameId = root.frame_id;
+  } else if (typeof root.frameId === "number") {
+    output.frameId = root.frameId;
   }
 
   return output;

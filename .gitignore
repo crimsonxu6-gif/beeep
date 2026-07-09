@@ -10,3 +10,7 @@ yarn-error.log*
 .env.local
 .expo-start.*.log
 .gh-auth.*.log
+.codex/
+__pycache__/
+*.py[cod]
+backend/.venv/

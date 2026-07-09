@@ -21,7 +21,32 @@ npm install
 npm start
 ```
 
-Open the project in Expo Go or a simulator. Without `EXPO_PUBLIC_SHUTTERMUSE_API_URL`, the app uses a local mock guidance engine so the prototype remains runnable.
+Open the project in an Expo development build or a simulator. Without backend URLs, the app falls back to local mock vision/guidance so the prototype remains runnable.
+
+## FastAPI + MediaPipe backend
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Set these for a phone on the same Wi-Fi, replacing the IP with your computer LAN IP:
+
+```bash
+EXPO_PUBLIC_MEDIAPIPE_VISION_API_URL=http://192.168.0.106:8000/vision/features
+EXPO_PUBLIC_SHUTTERMUSE_API_URL=http://192.168.0.106:8000/guidance
+```
+
+If `EXPO_PUBLIC_MEDIAPIPE_VISION_API_URL` is omitted and `EXPO_PUBLIC_SHUTTERMUSE_API_URL`
+ends with `/guidance`, the app derives `/vision/features` automatically.
+
+The backend exposes:
+
+- `POST /vision/features`: MediaPipe face detection, person bbox, pose keypoints, scene features.
+- `POST /guidance`: strict `GuidanceOutput` JSON for `move_camera`, `adjust_pose`, and `framing_hint`.
 
 ## Development build
 
@@ -83,7 +108,7 @@ Optional batch endpoint: set `EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL`; it receive
 ## Modules
 
 - `src/camera`: 2-5 FPS frame sampling, no per-frame LLM calls.
-- `src/vision`: replaceable preprocessing adapter for face/person/pose/scene features.
+- `src/vision`: MediaPipe backend adapter with mock fallback for face/person/pose/scene features.
 - `src/ai_engine`: prompt manager, HTTP client, batch interface, strict JSON parser, mock engine.
 - `src/stability`: multi-frame consistency, confidence threshold, debounce, bbox smoothing.
 - `src/ui`: camera overlay arrows, person box, and <=10 character instruction text.
@@ -97,7 +122,7 @@ Optional batch endpoint: set `EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL`; it receive
 
 ## Production integration notes
 
-- Replace `PrototypeVisionPreprocessor` with MediaPipe, MoveNet, or YOLO output adapters.
-- Put ShutterMuse behind an HTTP API; avoid embedding the model directly in the mobile app.
+- `MediaPipeVisionPreprocessor` calls the backend vision API and falls back to local mock features when no endpoint is configured.
+- Put the real ShutterMuse model behind `POST /guidance`; avoid embedding the model directly in the mobile app.
 - Keep `EXPO_PUBLIC_SAMPLE_FPS` between `2` and `5`.
 - Keep `EXPO_PUBLIC_AI_TIMEOUT_MS` near the target update budget; default is `280ms`.
