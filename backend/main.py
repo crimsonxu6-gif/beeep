@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from api.analyze import guidance_service
 from api.analyze import router as analyze_router
 from api.guidance import router as guidance_router
 from core.config import settings
@@ -68,5 +69,7 @@ def health() -> dict[str, str]:
 
 
 @app.get("/ready")
-def readiness() -> dict[str, str]:
-    return {"status": "ready"}
+def readiness():
+    state = guidance_service.readiness()
+    status_code = 200 if state.get("status") == "ready" else 503
+    return JSONResponse(status_code=status_code, content=state)

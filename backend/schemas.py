@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 StrictModelConfig = ConfigDict(extra="forbid", populate_by_name=True)
 ActionStrength = Literal["low", "medium", "high"]
@@ -140,6 +140,13 @@ GuidanceAction = Annotated[
 class CompositionRecommendation(StrictModel):
     decision: Literal["keep", "refine", "reject"]
     bbox_norm: tuple[float, float, float, float]
+
+    @model_validator(mode="after")
+    def validate_bbox(self):
+        x1, y1, x2, y2 = self.bbox_norm
+        if not (0 <= x1 < x2 <= 1 and 0 <= y1 < y2 <= 1):
+            raise ValueError("bbox_norm must satisfy 0 <= x1 < x2 <= 1 and 0 <= y1 < y2 <= 1")
+        return self
 
 
 class TargetPoseKeypoint(StrictModel):

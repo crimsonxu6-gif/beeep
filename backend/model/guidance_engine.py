@@ -1,43 +1,27 @@
 from __future__ import annotations
 
-import os
-
-from fastapi import HTTPException
-
-from schemas import GuidanceOutput, GuidanceRequest, VisionFeatures
-
-from .shuttermuse import ShutterMuseGuidanceEngine
-from .shuttermuse_adapter import RealShutterMuseAdapter
+from core.config import settings
+from schemas import AnalyzeRequest, GuidanceOutput, GuidanceRequest, VisionFeatures
+from services.service_factory import create_guidance_service
 
 
 class GuidanceEngineService:
+    """Compatibility wrapper for the legacy /guidance endpoint."""
+
     def __init__(self) -> None:
-        self.mode = (
-            os.getenv("GUIDANCE_ENGINE", os.getenv("BEEEP_GUIDANCE_ENGINE", "rule")).strip().lower() or "rule"
-        )
-        self.rule_engine = ShutterMuseGuidanceEngine()
-        self.real_shuttermuse: RealShutterMuseAdapter | None = None
+        self.engine = create_guidance_service(settings.guidance_engine)
 
     def infer(self, request: GuidanceRequest, features: VisionFeatures) -> GuidanceOutput:
-        if self.mode in {"rule", "mock"}:
-            return self.rule_engine.infer(features)
-
-        if self.mode in {"shuttermuse", "real"}:
-            return self._real_engine().infer(request, features)
-
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unsupported BEEEP_GUIDANCE_ENGINE mode: {self.mode}",
+        analyze_request = AnalyzeRequest(
+            frame_id=request.frame_id,
+            timestamp=request.timestamp,
+            image=request.image,
+            mode="composition",
+            composition_mode="auto",
+            target_ratio="3:4",
+            language="zh-CN",
         )
+        return self.engine.analyze(analyze_request, features)
 
-    def status(self) -> dict[str, str | bool]:
-        return {
-            "mode": self.mode,
-            "usesRealShutterMuse": self.mode in {"shuttermuse", "real"},
-            "modelLoaded": self.real_shuttermuse is not None,
-        }
-
-    def _real_engine(self) -> RealShutterMuseAdapter:
-        if self.real_shuttermuse is None:
-            self.real_shuttermuse = RealShutterMuseAdapter.from_env()
-        return self.real_shuttermuse
+    def status(self) -> dict[str, object]:
+        return self.engine.readiness()

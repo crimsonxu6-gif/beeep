@@ -15,3 +15,12 @@ class RuleGuidanceService:
     def analyze(self, request: AnalyzeRequest, vision_features: VisionFeatures) -> GuidanceOutput:
         output = self.engine.infer(vision_features, request.composition_mode)
         return self.adapter.adapt(output, request, vision_features)
+
+    def readiness(self) -> dict[str, object]:
+        return {
+            "status": "ready",
+            "guidance_engine": self.engine_name,
+            "model_loaded": False,
+            "warmup_completed": False,
+            "device": "cpu",
+        }

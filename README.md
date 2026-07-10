@@ -7,7 +7,7 @@ Camera preview
   -> 0.5-1 FPS compressed analysis frame
   -> POST /v1/analyze (image uploaded once)
   -> MediaPipe reusable vision processor
-  -> rules or ShutterMuse guidance service
+  -> rules or ShutterMuse GPU model service
   -> normalized composition / pose adapter
   -> latest-wins + stale frame guard + stability filter
   -> one short overlay action
@@ -68,17 +68,36 @@ Use the built-in deterministic engine during local development:
 GUIDANCE_ENGINE=rules
 ```
 
-Switch to the server-side ShutterMuse adapter after the repository and weights are installed:
+The released ShutterMuse checkpoint is already trained. Do not retrain or fine-tune it for
+the first product validation. Run the dedicated GPU service after cloning the official
+repository:
+
+```powershell
+git clone https://github.com/lijayuTnT/ShutterMuse.git D:\models\ShutterMuse
+cd D:\beeep\model-service
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:SHUTTERMUSE_REPO_PATH="D:\models\ShutterMuse"
+$env:SHUTTERMUSE_MODEL_PATH="ShutterMuse/ShutterMuse"
+$env:SHUTTERMUSE_DEVICE="cuda"
+uvicorn app:app --host 0.0.0.0 --port 8100
+```
+
+Then start Beeep FastAPI with:
 
 ```env
 GUIDANCE_ENGINE=shuttermuse
-SHUTTERMUSE_REPO_PATH=D:\models\ShutterMuse
-SHUTTERMUSE_MODEL_PATH=D:\models\Qwen3-VL-8B-Instruct
-SHUTTERMUSE_LORA_PATH=D:\models\ShutterMuse-LoRA
-SHUTTERMUSE_DEVICE=cuda
+SHUTTERMUSE_SERVICE_URL=http://127.0.0.1:8100
 ```
 
-The service interface and adapter are complete. The current real adapter loads ShutterMuse's photographer-side inference script lazily and maps its crop box to normalized `bbox_norm` plus actions. The strict 17-keypoint pose schema and parser are ready; wiring the released subject-side checkpoint output is still pending.
+The GPU process loads one model and one processor, performs parse-checked warmup before
+readiness, and permits one active plus one replaceable pending generation. Beeep converts
+the model's normalized crop into one product action. Invalid boxes return a low-confidence
+result and never produce a fabricated crop.
+
+Use `GUIDANCE_ENGINE=rules` to run without the GPU service. Use
+`GUIDANCE_ENGINE=shuttermuse` only after `http://127.0.0.1:8100/ready` reports ready.
 
 ## Capture flow
 
@@ -110,11 +129,16 @@ npm run check
 cd backend
 ..\.venv\Scripts\python.exe -m pytest -q
 ..\.venv\Scripts\ruff.exe check .
+cd ..\model-service
+..\.venv\Scripts\python.exe -m pytest -q
+..\.venv\Scripts\ruff.exe check .
 ```
 
 ## Current limitations
 
-- ShutterMuse weights are not included in this repository.
+- ShutterMuse weights are not included in this repository; use the official merged Hugging Face checkpoint.
+- The released model is about 9B BF16 parameters. This workstation's 8 GB RTX 4060 cannot validate the full BF16 configuration without offload or quantization.
 - Subject-side ShutterMuse inference still needs to be connected to the strict COCO-17 adapter.
+- The upstream repository currently has no finalized code/model license. Commercial use remains blocked pending explicit terms.
 - MediaPipe currently runs on the backend; a later mobile-native visual layer will reduce latency and traffic.
 - Gallery images currently enter preview; offline gallery scoring is not part of this MVP.

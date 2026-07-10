@@ -16,6 +16,7 @@ from schemas import (
 )
 from services.guidance_adapter import GuidanceAdapter
 from services.service_factory import create_guidance_service
+from services.shuttermuse_client import ModelCompositionResult
 
 
 def features(center_x: float) -> VisionFeatures:
@@ -73,3 +74,49 @@ def test_pose_adapter_rejects_incomplete_output() -> None:
 def test_service_factory_switches_engines() -> None:
     assert create_guidance_service("rules").engine_name == "rules"
     assert create_guidance_service("shuttermuse").engine_name == "shuttermuse"
+
+
+def test_model_bbox_becomes_normalized_product_guidance() -> None:
+    result = ModelCompositionResult(
+        request_id="req_test",
+        frame_id=1,
+        status="success",
+        decision="refine",
+        bbox_norm=(0.05, 0.1, 0.55, 0.9),
+        confidence=0.84,
+        inference_ms=400,
+    )
+    output = GuidanceAdapter().from_model_composition(result, frame_id=1)
+    assert output.composition is not None
+    assert output.composition.bbox_norm == (0.05, 0.1, 0.55, 0.9)
+    assert output.actions[0].type == "move_camera"
+
+
+def test_invalid_model_output_never_fabricates_bbox() -> None:
+    result = ModelCompositionResult(
+        request_id="req_test",
+        frame_id=1,
+        status="low_confidence",
+        error_code="INVALID_MODEL_OUTPUT",
+        inference_ms=400,
+    )
+    output = GuidanceAdapter().from_model_composition(result, frame_id=1)
+    assert output.composition is None
+    assert output.message == "重新取景"
+
+
+def test_app_composition_schema_rejects_out_of_range_bbox() -> None:
+    with pytest.raises(ValidationError):
+        GuidanceOutput.model_validate(
+            {
+                "frameId": 1,
+                "priority": "composition",
+                "problem": {"type": "crop", "description": "bad"},
+                "actions": [{"type": "framing_hint", "message": "重新取景"}],
+                "message": "重新取景",
+                "reason": "invalid",
+                "summary": "invalid",
+                "confidence": 0.5,
+                "composition": {"decision": "refine", "bbox_norm": [-0.1, 0.1, 1.0, 0.9]},
+            }
+        )

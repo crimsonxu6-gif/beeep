@@ -1,23 +1,45 @@
 from __future__ import annotations
 
-from model.shuttermuse_adapter import RealShutterMuseAdapter
+import logging
+
+from core.config import settings
+from core.request_context import get_request_id
 from schemas import AnalyzeRequest, GuidanceOutput, VisionFeatures
 from services.guidance_adapter import GuidanceAdapter
+from services.shuttermuse_client import ShutterMuseModelClient
+
+logger = logging.getLogger("beeep.shuttermuse")
 
 
 class ShutterMuseGuidanceService:
     engine_name = "shuttermuse"
 
     def __init__(self) -> None:
-        self.adapter: RealShutterMuseAdapter | None = None
+        self.client = ShutterMuseModelClient()
         self.guidance_adapter = GuidanceAdapter()
 
     def analyze(self, request: AnalyzeRequest, vision_features: VisionFeatures) -> GuidanceOutput:
-        if self.adapter is None:
-            self.adapter = RealShutterMuseAdapter.from_env()
-        output = self.adapter.infer(request, vision_features)
-        return self.guidance_adapter.adapt(output, request, vision_features)
+        model_result = self.client.infer(request)
+        output = self.guidance_adapter.from_model_composition(
+            model_result,
+            frame_id=request.frame_id,
+        )
+        if settings.shuttermuse_debug_output:
+            action = output.actions[0] if output.actions else None
+            logger.info(
+                "guidance_debug request_id=%s frame_id=%s target_ratio=%s composition_mode=%s "
+                "bbox_norm=%s decision=%s action=%s message=%s model_ms=%s",
+                get_request_id(),
+                request.frame_id,
+                request.target_ratio,
+                request.composition_mode,
+                model_result.bbox_norm,
+                model_result.decision,
+                action.type if action else None,
+                action.message if action else None,
+                model_result.inference_ms,
+            )
+        return output
 
-    @property
-    def model_loaded(self) -> bool:
-        return self.adapter is not None
+    def readiness(self) -> dict[str, object]:
+        return self.client.readiness()

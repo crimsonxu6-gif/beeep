@@ -10,9 +10,14 @@ yarn-error.log*
 .env.local
 .expo-start.*.log
 .backend-start.*.log
+.model-service.*.log
+.shuttermuse-backend.*.log
 .gh-auth.*.log
 .codex/
 __pycache__/
 *.py[cod]
 backend/.venv/
 .venv/
+evaluation/beeep_capture_eval/images/*
+!evaluation/beeep_capture_eval/images/.gitkeep
+evaluation/beeep_capture_eval/results*.jsonl

@@ -31,5 +31,5 @@ def guidance(request: GuidanceRequest) -> GuidanceOutput:
 
 
 @router.get("/guidance/status")
-def guidance_status() -> dict[str, str | bool]:
+def guidance_status() -> dict[str, object]:
     return guidance_engine.status()

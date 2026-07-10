@@ -58,6 +58,13 @@ def test_health_returns_request_id() -> None:
     assert response.headers["x-request-id"].startswith("req_")
 
 
+def test_readiness_reflects_selected_rule_engine() -> None:
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json()["guidance_engine"] == "rules"
+    assert response.json()["status"] == "ready"
+
+
 def test_mediapipe_no_pose_result_is_safe() -> None:
     assert _pose_people(object(), 100, 100, None) == []
 
