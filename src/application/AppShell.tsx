@@ -64,6 +64,7 @@ export function AppShell() {
           onSave={capture.save}
           onBack={() => { capture.clear(); setRoute("camera"); }}
           onGallery={capture.pick}
+          statusMessage={capture.error}
         />
       ) : null}
       {route === "camera" ? (
@@ -77,7 +78,7 @@ export function AppShell() {
           visionFeatures={visionFeatures}
           latencyMs={debugState.totalLatencyMs}
           processing={processing}
-          error={error}
+          error={capture.error ?? error}
           onBack={() => setRoute("home")}
           onCapture={() => { reset(); void capture.capture(); }}
           onOpenGallery={() => { reset(); void capture.pick(); }}
