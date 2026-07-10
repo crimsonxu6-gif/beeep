@@ -4,6 +4,7 @@ from schemas import (
     AdjustAngleAction,
     AdjustDistanceAction,
     AdjustPoseAction,
+    CompositionMode,
     FramingHintAction,
     GuidanceAction,
     GuidanceOutput,
@@ -40,13 +41,12 @@ def _move(direction: str, message: str, confidence: float) -> MoveCameraAction:
 
 
 class ShutterMuseGuidanceEngine:
-    def infer(self, features: VisionFeatures) -> GuidanceOutput:
+    def infer(self, features: VisionFeatures, composition_mode: CompositionMode = "auto") -> GuidanceOutput:
         actions: list[GuidanceAction] = []
         priority = "composition"
         problem = _problem("none", "画面稳定")
         reason = "没有明显构图或光线问题"
         summary = "画面稳定"
-        confidence = 0.78
 
         subject = features.people[0] if features.people else None
         if subject is None:
@@ -104,41 +104,68 @@ class ShutterMuseGuidanceEngine:
             )
 
         x, y, width, height = subject.bbox
-        center_x = (x + width / 2) / max(features.imageSize.width, 1)
-        center_y = (y + height / 2) / max(features.imageSize.height, 1)
+        center_x = x + width / 2
+        center_y = y + height / 2
+        targets = {
+            "center": 0.50,
+            "thirds_left": 0.33,
+            "thirds_right": 0.67,
+            "portrait_closeup": 0.50,
+            "full_body": 0.50,
+        }
+        if composition_mode == "auto":
+            target_x = min((0.33, 0.50, 0.67), key=lambda target: abs(center_x - target))
+        else:
+            target_x = targets.get(composition_mode, 0.50)
 
-        if center_x < 0.43:
+        if center_x < target_x - 0.08:
             actions.append(_move("left", "往左一点", 0.82))
             problem = _problem("subject_position", "主体偏左")
             reason = "主体中心位于画面左侧"
             summary = "主体偏左"
-        elif center_x > 0.57:
+        elif center_x > target_x + 0.08:
             actions.append(_move("right", "往右一点", 0.82))
             problem = _problem("subject_position", "主体偏右")
             reason = "主体中心位于画面右侧"
             summary = "主体偏右"
 
         if not actions and center_y < 0.34:
-            actions.append(AdjustAngleAction(type="adjust_angle", direction="raise", message="手机高一点", confidence=0.74))
+            actions.append(
+                AdjustAngleAction(
+                    type="adjust_angle", direction="raise", message="手机高一点", confidence=0.74
+                )
+            )
             priority = "angle"
             problem = _problem("camera_angle", "下方空间多")
             reason = "主体位置偏上，下方留白过多"
             summary = "下方空间多"
         elif not actions and center_y > 0.7:
-            actions.append(AdjustAngleAction(type="adjust_angle", direction="lower", message="手机低一点", confidence=0.74))
+            actions.append(
+                AdjustAngleAction(
+                    type="adjust_angle", direction="lower", message="手机低一点", confidence=0.74
+                )
+            )
             priority = "angle"
             problem = _problem("camera_angle", "主体偏低")
             reason = "主体位置偏下，需要降低手机取景"
             summary = "主体偏低"
 
         if len(actions) < 2 and features.face.size == "small":
-            actions.append(AdjustDistanceAction(type="adjust_distance", direction="closer", message="靠近一点", confidence=0.76))
+            actions.append(
+                AdjustDistanceAction(
+                    type="adjust_distance", direction="closer", message="靠近一点", confidence=0.76
+                )
+            )
             priority = "distance" if not actions[:-1] else priority
             problem = _problem("subject_too_small", "人物太小")
             reason = "人脸或主体占画面比例偏小"
             summary = "人物太小"
         elif len(actions) < 2 and features.face.size == "large":
-            actions.append(AdjustDistanceAction(type="adjust_distance", direction="farther", message="后退一点", confidence=0.72))
+            actions.append(
+                AdjustDistanceAction(
+                    type="adjust_distance", direction="farther", message="后退一点", confidence=0.72
+                )
+            )
             priority = "distance" if not actions[:-1] else priority
             problem = _problem("subject_too_large", "距离太近")
             reason = "人脸或主体占画面比例偏大"
@@ -161,7 +188,7 @@ class ShutterMuseGuidanceEngine:
         nose = _keypoint(features, "nose")
         if left_shoulder and right_shoulder:
             shoulder_delta = abs(left_shoulder.y - right_shoulder.y)
-            if shoulder_delta > features.imageSize.height * 0.035:
+            if shoulder_delta > 0.035:
                 return GuidanceOutput(
                     frameId=features.frameId,
                     priority="pose",
@@ -181,7 +208,7 @@ class ShutterMuseGuidanceEngine:
 
             if nose:
                 shoulder_center = (left_shoulder.x + right_shoulder.x) / 2
-                head_offset = (nose.x - shoulder_center) / max(features.imageSize.width, 1)
+                head_offset = nose.x - shoulder_center
                 if head_offset > 0.06:
                     return GuidanceOutput(
                         frameId=features.frameId,

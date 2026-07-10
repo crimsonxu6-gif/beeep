@@ -1,80 +1,94 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+StrictModelConfig = ConfigDict(extra="forbid", populate_by_name=True)
 ActionStrength = Literal["low", "medium", "high"]
-GuidancePriority = Literal["subject", "lighting", "composition", "pose", "camera", "distance", "angle", "hold"]
-MoveDirection = Literal["left", "right", "up", "down", "forward", "back", "hold"]
+GuidancePriority = Literal[
+    "subject", "lighting", "composition", "pose", "camera", "distance", "angle", "hold"
+]
+CompositionMode = Literal["auto", "center", "thirds_left", "thirds_right", "portrait_closeup", "full_body"]
 FacePosition = Literal["left", "center", "right", "unknown"]
 FaceSize = Literal["small", "medium", "large", "unknown"]
 SceneBrightness = Literal["normal", "low_light", "backlight", "overexposed"]
 SceneClutter = Literal["low", "medium", "high"]
 
 
-class ImagePayload(BaseModel):
+class StrictModel(BaseModel):
+    model_config = StrictModelConfig
+
+
+class ImagePayload(StrictModel):
     base64: str | None = None
     uri: str | None = None
-    width: int
-    height: int
-    mime_type: str = Field(default="image/jpeg", alias="mime_type")
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    mime_type: str = Field(default="image/jpeg", max_length=32)
 
 
-class VisionFeatureRequest(BaseModel):
-    frame_id: int = Field(alias="frame_id")
-    timestamp: int
+class VisionFeatureRequest(StrictModel):
+    frame_id: int = Field(ge=1)
+    timestamp: int = Field(ge=0)
     image: ImagePayload
 
 
-class ImageSize(BaseModel):
+class AnalyzeRequest(VisionFeatureRequest):
+    mode: Literal["composition", "portrait", "general"] = "composition"
+    composition_mode: CompositionMode = "auto"
+    target_ratio: Literal["1:1", "3:4", "4:3", "9:16", "16:9"] = "3:4"
+    language: Literal["zh-CN"] = "zh-CN"
+
+
+class ImageSize(StrictModel):
     width: int
     height: int
 
 
-class PoseKeypoint(BaseModel):
+class PoseKeypoint(StrictModel):
     name: str
-    x: float
-    y: float
-    score: float | None = None
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    score: float | None = Field(default=None, ge=0, le=1)
 
 
-class PersonDetection(BaseModel):
+class PersonDetection(StrictModel):
     id: str
     bbox: tuple[float, float, float, float]
     keypoints: list[PoseKeypoint] = Field(default_factory=list)
-    score: float
+    score: float = Field(ge=0, le=1)
 
 
-class FaceFeatures(BaseModel):
+class FaceFeatures(StrictModel):
     position: FacePosition
     size: FaceSize
 
 
-class SceneFeatures(BaseModel):
+class SceneFeatures(StrictModel):
     brightness: SceneBrightness
     clutter: SceneClutter
 
 
-class VisionFeatures(BaseModel):
+class VisionFeatures(StrictModel):
     frameId: int
     imageSize: ImageSize
     people: list[PersonDetection] = Field(default_factory=list)
     face: FaceFeatures
     scene: SceneFeatures
-    preprocessingLatencyMs: int
+    preprocessingLatencyMs: int = Field(ge=0)
 
 
 class GuidanceRequest(VisionFeatureRequest):
-    vision_features: VisionFeatures | None = Field(default=None, alias="vision_features")
+    vision_features: VisionFeatures | None = None
 
 
-class GuidanceProblem(BaseModel):
+class GuidanceProblem(StrictModel):
     type: str = Field(max_length=40)
     description: str = Field(max_length=48)
 
 
-class GuidanceActionBase(BaseModel):
+class GuidanceActionBase(StrictModel):
     message: str = Field(max_length=10)
     confidence: float | None = Field(default=None, ge=0, le=1)
     strength: ActionStrength | None = None
@@ -111,18 +125,42 @@ class HoldAction(GuidanceActionBase):
     type: Literal["hold"]
 
 
-GuidanceAction = (
+GuidanceAction = Annotated[
     MoveCameraAction
     | AdjustDistanceAction
     | AdjustAngleAction
     | AdjustPoseAction
     | FramingHintAction
     | LightingHintAction
-    | HoldAction
-)
+    | HoldAction,
+    Field(discriminator="type"),
+]
 
 
-class GuidanceOutput(BaseModel):
+class CompositionRecommendation(StrictModel):
+    decision: Literal["keep", "refine", "reject"]
+    bbox_norm: tuple[float, float, float, float]
+
+
+class TargetPoseKeypoint(StrictModel):
+    name: str
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    visibility: float = Field(ge=0, le=1)
+
+
+class PoseRecommendation(StrictModel):
+    keypoints: list[TargetPoseKeypoint] = Field(min_length=17, max_length=17)
+    keypoint_count: Literal[17]
+
+
+class GuidanceTiming(StrictModel):
+    vision_ms: int = Field(ge=0)
+    guidance_ms: int = Field(ge=0)
+    total_ms: int = Field(ge=0)
+
+
+class GuidanceOutput(StrictModel):
     frameId: int | None = None
     priority: GuidancePriority
     problem: GuidanceProblem
@@ -131,3 +169,23 @@ class GuidanceOutput(BaseModel):
     reason: str = Field(max_length=80)
     summary: str = Field(max_length=32)
     confidence: float = Field(ge=0, le=1)
+    composition: CompositionRecommendation | None = None
+    pose: PoseRecommendation | None = None
+
+
+class AnalyzeResponse(StrictModel):
+    request_id: str
+    frame_id: int
+    status: Literal["success"] = "success"
+    guidance_engine: str
+    priority: GuidancePriority
+    problem: GuidanceProblem
+    actions: list[GuidanceAction] = Field(max_length=2)
+    message: str = Field(max_length=10)
+    reason: str = Field(max_length=80)
+    summary: str = Field(max_length=32)
+    confidence: float = Field(ge=0, le=1)
+    composition: CompositionRecommendation | None = None
+    pose: PoseRecommendation | None = None
+    vision_features: VisionFeatures
+    timing: GuidanceTiming

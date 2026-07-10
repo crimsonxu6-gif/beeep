@@ -9,6 +9,10 @@ import { guidanceToInstruction } from "@/ui/instructionFormatter";
 import { InstructionText } from "@/ui/InstructionText";
 import { OverlayArrows } from "@/ui/OverlayArrows";
 import { stableGuidanceVariant } from "@/ui/guidanceVisuals";
+import { GuidanceDebugState } from "@/ai_engine/guidancePipeline";
+import { CompositionMode } from "@/types/guidance";
+import { CompositionBoxOverlay } from "./CompositionBoxOverlay";
+import { PoseSkeletonOverlay } from "./PoseSkeletonOverlay";
 
 export interface OverlaySize {
   width: number;
@@ -22,6 +26,8 @@ interface GuidanceOverlayProps {
   processing: boolean;
   latencyMs: number | null;
   error: string | null;
+  debugState: GuidanceDebugState;
+  compositionMode: CompositionMode;
 }
 
 function RuleOfThirdsGrid({ width, height }: OverlaySize) {
@@ -68,7 +74,9 @@ export function GuidanceOverlay({
   overlaySize,
   processing,
   latencyMs,
-  error
+  error,
+  debugState,
+  compositionMode
 }: GuidanceOverlayProps) {
   const guidance = stableGuidance?.guidance;
   const instruction = guidanceToInstruction(guidance);
@@ -77,6 +85,8 @@ export function GuidanceOverlay({
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <RuleOfThirdsGrid width={overlaySize.width} height={overlaySize.height} />
+      <CompositionBoxOverlay guidance={guidance} size={overlaySize} />
+      <PoseSkeletonOverlay guidance={guidance} size={overlaySize} />
       <OverlayArrows guidance={guidance} variant={visualVariant} />
       <InstructionText
         text={instruction}
@@ -91,6 +101,8 @@ export function GuidanceOverlay({
           visionFeatures={visionFeatures}
           latencyMs={latencyMs}
           processing={processing}
+          debugState={debugState}
+          compositionMode={compositionMode}
         />
       ) : null}
     </View>

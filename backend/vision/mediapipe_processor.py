@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import threading
 import time
 from dataclasses import dataclass
 
@@ -8,6 +9,8 @@ import cv2
 import numpy as np
 from fastapi import HTTPException
 
+from core.config import settings
+from core.errors import ApiError
 from schemas import (
     FaceFeatures,
     ImageSize,
@@ -46,20 +49,29 @@ POSE_KEYPOINTS = {
 }
 
 
-def _decode_base64_image(value: str | None) -> np.ndarray:
+def _decode_base64_image(value: str | None, mime_type: str) -> np.ndarray:
+    if mime_type not in {"image/jpeg", "image/webp", "image/png"}:
+        raise ApiError(400, "INVALID_MIME", "不支持的图片格式")
     if not value:
-        raise HTTPException(status_code=400, detail="image.base64 is required for MediaPipe processing")
+        raise ApiError(400, "IMAGE_REQUIRED", "缺少图片")
 
     raw = value.split(",", 1)[1] if "," in value and "base64" in value[:40] else value
     try:
-        image_bytes = base64.b64decode(raw, validate=False)
+        image_bytes = base64.b64decode(raw, validate=True)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail="image.base64 is not valid base64") from exc
+        raise ApiError(400, "INVALID_BASE64", "图片数据无效") from exc
+
+    if len(image_bytes) > settings.max_image_bytes:
+        raise ApiError(413, "IMAGE_TOO_LARGE", "图片超过 2 MB")
 
     encoded = np.frombuffer(image_bytes, dtype=np.uint8)
     image = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
     if image is None:
-        raise HTTPException(status_code=400, detail="image.base64 could not be decoded as an image")
+        raise ApiError(400, "INVALID_IMAGE", "图片无法解码")
+
+    height, width = image.shape[:2]
+    if max(width, height) > settings.max_image_edge or width * height > settings.max_image_pixels:
+        raise ApiError(413, "IMAGE_DIMENSIONS_TOO_LARGE", "图片尺寸过大")
 
     return image
 
@@ -138,17 +150,13 @@ def _pose_people(pose_result: object, width: int, height: int, face: FaceBox | N
         return [
             PersonDetection(
                 id="primary",
-                bbox=(left, top, person_width, person_height),
+                bbox=(left / width, top / height, person_width / width, person_height / height),
                 keypoints=[],
                 score=face.score,
             )
         ]
 
-    visible = [
-        landmark
-        for landmark in landmarks.landmark
-        if getattr(landmark, "visibility", 1.0) >= 0.4
-    ]
+    visible = [landmark for landmark in landmarks.landmark if getattr(landmark, "visibility", 1.0) >= 0.4]
     if not visible:
         return []
 
@@ -165,8 +173,8 @@ def _pose_people(pose_result: object, width: int, height: int, face: FaceBox | N
         keypoints.append(
             PoseKeypoint(
                 name=name,
-                x=_clamp(float(landmark.x) * width, 0, width),
-                y=_clamp(float(landmark.y) * height, 0, height),
+                x=_clamp(float(landmark.x), 0, 1),
+                y=_clamp(float(landmark.y), 0, 1),
                 score=float(getattr(landmark, "visibility", 1.0)),
             )
         )
@@ -175,7 +183,12 @@ def _pose_people(pose_result: object, width: int, height: int, face: FaceBox | N
     return [
         PersonDetection(
             id="primary",
-            bbox=(left, top, max(1.0, right - left), max(1.0, bottom - top)),
+            bbox=(
+                left / width,
+                top / height,
+                max(1.0, right - left) / width,
+                max(1.0, bottom - top) / height,
+            ),
             keypoints=keypoints,
             score=score,
         )
@@ -183,36 +196,40 @@ def _pose_people(pose_result: object, width: int, height: int, face: FaceBox | N
 
 
 class MediaPipeVisionProcessor:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.face_detector = None
+        self.pose_detector = None
+        if mp is not None:
+            self.face_detector = mp.solutions.face_detection.FaceDetection(
+                model_selection=0, min_detection_confidence=0.5
+            )
+            self.pose_detector = mp.solutions.pose.Pose(
+                static_image_mode=True,
+                model_complexity=0,
+                enable_segmentation=False,
+                min_detection_confidence=0.5,
+            )
+
     def extract_features(self, request: VisionFeatureRequest) -> VisionFeatures:
+        started_at = time.perf_counter()
+        bgr = _decode_base64_image(request.image.base64, request.image.mime_type)
         if mp is None:
             raise HTTPException(
                 status_code=503,
                 detail="mediapipe is not installed. Run `pip install -r backend/requirements.txt`.",
             )
-
-        started_at = time.perf_counter()
-        bgr = _decode_base64_image(request.image.base64)
         height, width = bgr.shape[:2]
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
         face_box: FaceBox | None = None
-        with mp.solutions.face_detection.FaceDetection(
-            model_selection=0,
-            min_detection_confidence=0.5,
-        ) as face_detector:
-            face_result = face_detector.process(rgb)
+        with self.lock:
+            face_result = self.face_detector.process(rgb)
             detections = face_result.detections or []
             if detections:
                 face_box = _face_box_from_detection(detections[0], width, height)
-
-        with mp.solutions.pose.Pose(
-            static_image_mode=True,
-            model_complexity=0,
-            enable_segmentation=False,
-            min_detection_confidence=0.5,
-        ) as pose_detector:
-            pose_result = pose_detector.process(rgb)
+            pose_result = self.pose_detector.process(rgb)
 
         people = _pose_people(pose_result, width, height, face_box)
         if face_box:

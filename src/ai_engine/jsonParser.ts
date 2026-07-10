@@ -67,19 +67,31 @@ function normalizeStrength(value: unknown): ActionStrength {
 }
 
 function normalizeMoveDirection(value: unknown): "left" | "right" | "up" | "down" {
-  return moveDirections.has(String(value)) ? (String(value) as "left" | "right" | "up" | "down") : "left";
+  if (!moveDirections.has(String(value))) {
+    throw new GuidanceParseError(`Invalid move_camera direction: ${String(value)}`);
+  }
+  return String(value) as "left" | "right" | "up" | "down";
 }
 
 function normalizeLegacyDirection(value: unknown): MoveDirection {
-  return legacyDirections.has(String(value)) ? (String(value) as MoveDirection) : "hold";
+  if (!legacyDirections.has(String(value))) {
+    throw new GuidanceParseError(`Invalid framing direction: ${String(value)}`);
+  }
+  return String(value) as MoveDirection;
 }
 
 function normalizeDistanceDirection(value: unknown): DistanceDirection {
-  return distanceDirections.has(String(value)) ? (String(value) as DistanceDirection) : "closer";
+  if (!distanceDirections.has(String(value))) {
+    throw new GuidanceParseError(`Invalid adjust_distance direction: ${String(value)}`);
+  }
+  return String(value) as DistanceDirection;
 }
 
 function normalizeAngleDirection(value: unknown): AngleDirection {
-  return angleDirections.has(String(value)) ? (String(value) as AngleDirection) : "lower";
+  if (!angleDirections.has(String(value))) {
+    throw new GuidanceParseError(`Invalid adjust_angle direction: ${String(value)}`);
+  }
+  return String(value) as AngleDirection;
 }
 
 function normalizePriority(value: unknown): GuidancePriority | undefined {
@@ -339,11 +351,30 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
     throw new GuidanceParseError("Missing confidence number.");
   }
 
+  const frameId = typeof root.frame_id === "number" ? root.frame_id : root.frameId;
+  if (typeof frameId !== "number" || !Number.isInteger(frameId)) {
+    throw new GuidanceParseError("Missing reliable frame_id.");
+  }
+  const requestId = typeof root.request_id === "string" ? root.request_id : root.requestId;
+  const timingRaw = asRecord(root.timing ?? {});
   const output: GuidanceOutput = {
+    requestId: typeof requestId === "string" && requestId ? requestId : `frame_${frameId}`,
+    frameId,
+    status: "success",
     actions: actions.slice(0, 2),
     summary: typeof root.summary === "string" ? root.summary.slice(0, 80) : "",
-    confidence: Math.min(1, Math.max(0, confidence))
+    confidence: Math.min(1, Math.max(0, confidence)),
+    timing: {
+      visionMs: Number(timingRaw.vision_ms ?? timingRaw.visionMs) || 0,
+      guidanceMs: Number(timingRaw.guidance_ms ?? timingRaw.guidanceMs) || 0,
+      totalMs: Number(timingRaw.total_ms ?? timingRaw.totalMs) || 0
+    }
   };
+
+  const guidanceEngine = root.guidance_engine ?? root.guidanceEngine;
+  if (typeof guidanceEngine === "string" && guidanceEngine) {
+    output.guidanceEngine = guidanceEngine;
+  }
 
   const topLevelMessage = normalizeMessage(root.message);
   if (topLevelMessage) {
@@ -367,10 +398,37 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
     output.reason = reason;
   }
 
-  if (typeof root.frame_id === "number") {
-    output.frameId = root.frame_id;
-  } else if (typeof root.frameId === "number") {
-    output.frameId = root.frameId;
+  if (root.composition && typeof root.composition === "object") {
+    const composition = asRecord(root.composition);
+    const bbox = composition.bbox_norm ?? composition.bboxNorm;
+    const decision = composition.decision;
+    if (
+      (decision === "keep" || decision === "refine" || decision === "reject") &&
+      Array.isArray(bbox) && bbox.length === 4 && bbox.every((item) => typeof item === "number" && item >= 0 && item <= 1)
+    ) {
+      output.composition = { decision, bboxNorm: bbox as [number, number, number, number] };
+    }
+  }
+
+  if (root.pose && typeof root.pose === "object") {
+    const pose = asRecord(root.pose);
+    const keypoints = pose.keypoints;
+    if (!Array.isArray(keypoints) || keypoints.length !== 17 || pose.keypoint_count !== 17) {
+      throw new GuidanceParseError("Pose output must contain exactly 17 keypoints.");
+    }
+    output.pose = {
+      keypointCount: 17,
+      keypoints: keypoints.map((item) => {
+        const keypoint = asRecord(item);
+        const x = Number(keypoint.x);
+        const y = Number(keypoint.y);
+        const visibility = Number(keypoint.visibility);
+        if (!keypoint.name || ![x, y, visibility].every(Number.isFinite) || x < 0 || x > 1 || y < 0 || y > 1 || visibility < 0 || visibility > 1) {
+          throw new GuidanceParseError("Invalid normalized pose keypoint.");
+        }
+        return { name: String(keypoint.name), x, y, visibility };
+      })
+    };
   }
 
   return output;

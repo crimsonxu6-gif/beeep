@@ -12,7 +12,9 @@ from .shuttermuse_adapter import RealShutterMuseAdapter
 
 class GuidanceEngineService:
     def __init__(self) -> None:
-        self.mode = os.getenv("BEEEP_GUIDANCE_ENGINE", "rule").strip().lower() or "rule"
+        self.mode = (
+            os.getenv("GUIDANCE_ENGINE", os.getenv("BEEEP_GUIDANCE_ENGINE", "rule")).strip().lower() or "rule"
+        )
         self.rule_engine = ShutterMuseGuidanceEngine()
         self.real_shuttermuse: RealShutterMuseAdapter | None = None
 

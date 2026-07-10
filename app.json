@@ -13,13 +13,18 @@
       "bundleIdentifier": "com.crimson054.aiphotocoach",
       "infoPlist": {
         "NSCameraUsageDescription": "Camera access is required for real-time photography guidance.",
+        "NSPhotoLibraryUsageDescription": "Photo library access lets you choose photos to preview and analyze.",
+        "NSPhotoLibraryAddUsageDescription": "Photo library access is required to save captured photos.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.crimson054.aiphotocoach",
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {

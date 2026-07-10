@@ -11,6 +11,13 @@ export type MoveDirection = "left" | "right" | "up" | "down" | "forward" | "back
 export type AngleDirection = "lower" | "raise" | "tilt_left" | "tilt_right" | "straighten";
 export type DistanceDirection = "closer" | "farther";
 export type ActionStrength = "low" | "medium" | "high";
+export type CompositionMode =
+  | "auto"
+  | "center"
+  | "thirds_left"
+  | "thirds_right"
+  | "portrait_closeup"
+  | "full_body";
 
 export interface GuidanceProblem {
   type: string;
@@ -68,7 +75,10 @@ export type GuidanceAction =
   | HoldAction;
 
 export interface GuidanceOutput {
-  frameId?: number;
+  requestId: string;
+  frameId: number;
+  status: "success";
+  guidanceEngine?: string;
   priority?: GuidancePriority;
   problem?: GuidanceProblem;
   reason?: string;
@@ -76,6 +86,24 @@ export interface GuidanceOutput {
   actions: GuidanceAction[];
   summary: string;
   confidence: number;
+  composition?: {
+    decision: "keep" | "refine" | "reject";
+    bboxNorm: [number, number, number, number];
+  };
+  pose?: {
+    keypoints: Array<{
+      name: string;
+      x: number;
+      y: number;
+      visibility: number;
+    }>;
+    keypointCount: 17;
+  };
+  timing: {
+    visionMs: number;
+    guidanceMs: number;
+    totalMs: number;
+  };
 }
 
 export interface StableGuidance {

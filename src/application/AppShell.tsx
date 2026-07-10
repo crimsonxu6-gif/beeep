@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LayoutChangeEvent, StatusBar, StyleSheet, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 
@@ -12,16 +12,30 @@ import { useCameraFrameSampler } from "@/camera/useCameraFrameSampler";
 import { useGuidanceController } from "./useGuidanceController";
 import { OverlaySize } from "@/components/GuidanceOverlay";
 import { colors } from "@/theme/design";
+import { CompositionMode } from "@/types/guidance";
+import { useCaptureController } from "./useCaptureController";
+import { PhotoPreviewScreen } from "@/screens/PhotoPreviewScreen";
+import { isAutomaticAnalysisEnabled } from "./analysisState";
 
 export function AppShell() {
   const cameraRef = useRef<CameraView | null>(null);
   const [route, setRoute] = useState<AppRoute>("home");
   const [permission, requestPermission] = useCameraPermissions();
   const [overlaySize, setOverlaySize] = useState<OverlaySize>({ width: 0, height: 0 });
-  const { stableGuidance, visionFeatures, latencyMs, processing, error, handleFrame } =
-    useGuidanceController();
+  const [compositionMode, setCompositionMode] = useState<CompositionMode>("auto");
+  const { stableGuidance, visionFeatures, debugState, processing, error, handleFrame, reset } =
+    useGuidanceController(compositionMode);
+  const capture = useCaptureController(cameraRef);
 
-  const cameraActive = route === "camera" && Boolean(permission?.granted);
+  const cameraActive = isAutomaticAnalysisEnabled(route, Boolean(permission?.granted), processing, capture.capturing);
+
+  useEffect(() => {
+    if (capture.photo) setRoute("photoPreview");
+  }, [capture.photo]);
+
+  useEffect(() => {
+    if (route !== "camera") reset();
+  }, [reset, route]);
 
   useCameraFrameSampler({
     cameraRef,
@@ -43,6 +57,15 @@ export function AppShell() {
       <StatusBar barStyle={route === "camera" ? "light-content" : "dark-content"} />
       {route === "home" ? <HomeScreen onNavigate={setRoute} /> : null}
       {route === "profile" ? <ProfileScreen /> : null}
+      {route === "photoPreview" && capture.photo ? (
+        <PhotoPreviewScreen
+          photo={capture.photo}
+          onRetake={() => { capture.clear(); setRoute("camera"); }}
+          onSave={capture.save}
+          onBack={() => { capture.clear(); setRoute("camera"); }}
+          onGallery={capture.pick}
+        />
+      ) : null}
       {route === "camera" ? (
         <CameraWorkspace
           cameraRef={cameraRef}
@@ -52,13 +75,19 @@ export function AppShell() {
           onLayout={handleLayout}
           stableGuidance={stableGuidance}
           visionFeatures={visionFeatures}
-          latencyMs={latencyMs}
+          latencyMs={debugState.totalLatencyMs}
           processing={processing}
           error={error}
           onBack={() => setRoute("home")}
+          onCapture={() => { reset(); void capture.capture(); }}
+          onOpenGallery={() => { reset(); void capture.pick(); }}
+          capturing={capture.capturing}
+          compositionMode={compositionMode}
+          onCompositionModeChange={setCompositionMode}
+          debugState={debugState}
         />
       ) : null}
-      {route !== "camera" ? <AppBottomTabs activeRoute={route} onChange={setRoute} /> : null}
+      {route !== "camera" && route !== "photoPreview" ? <AppBottomTabs activeRoute={route} onChange={setRoute} /> : null}
     </View>
   );
 }

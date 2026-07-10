@@ -15,6 +15,7 @@ from fastapi import HTTPException
 from schemas import (
     AdjustAngleAction,
     AdjustDistanceAction,
+    CompositionRecommendation,
     FramingHintAction,
     GuidanceAction,
     GuidanceOutput,
@@ -158,6 +159,12 @@ def _bbox_to_guidance(
         )
 
     x1, y1, x2, y2 = bbox
+    bbox_norm = (
+        max(0.0, min(1.0, x1 / max(image_width, 1))),
+        max(0.0, min(1.0, y1 / max(image_height, 1))),
+        max(0.0, min(1.0, x2 / max(image_width, 1))),
+        max(0.0, min(1.0, y2 / max(image_height, 1))),
+    )
     box_width = max(1.0, x2 - x1)
     box_height = max(1.0, y2 - y1)
     center_x = (x1 + x2) / 2 / max(image_width, 1)
@@ -166,31 +173,43 @@ def _bbox_to_guidance(
     actions: list[GuidanceAction] = []
 
     if center_x < 0.43:
-        actions.append(MoveCameraAction(type="move_camera", direction="left", message="往左一点", confidence=0.82))
+        actions.append(
+            MoveCameraAction(type="move_camera", direction="left", message="往左一点", confidence=0.82)
+        )
         priority = "composition"
         problem = _problem("crop_left", "最佳区域偏左")
         reason = "ShutterMuse 推荐保留画面左侧区域"
         summary = "最佳区域偏左"
     elif center_x > 0.57:
-        actions.append(MoveCameraAction(type="move_camera", direction="right", message="往右一点", confidence=0.82))
+        actions.append(
+            MoveCameraAction(type="move_camera", direction="right", message="往右一点", confidence=0.82)
+        )
         priority = "composition"
         problem = _problem("crop_right", "最佳区域偏右")
         reason = "ShutterMuse 推荐保留画面右侧区域"
         summary = "最佳区域偏右"
     elif center_y < 0.36:
-        actions.append(AdjustAngleAction(type="adjust_angle", direction="raise", message="手机高一点", confidence=0.76))
+        actions.append(
+            AdjustAngleAction(type="adjust_angle", direction="raise", message="手机高一点", confidence=0.76)
+        )
         priority = "angle"
         problem = _problem("crop_top", "最佳区域偏上")
         reason = "ShutterMuse 推荐保留画面上方区域"
         summary = "最佳区域偏上"
     elif center_y > 0.64:
-        actions.append(AdjustAngleAction(type="adjust_angle", direction="lower", message="手机低一点", confidence=0.76))
+        actions.append(
+            AdjustAngleAction(type="adjust_angle", direction="lower", message="手机低一点", confidence=0.76)
+        )
         priority = "angle"
         problem = _problem("crop_bottom", "最佳区域偏下")
         reason = "ShutterMuse 推荐保留画面下方区域"
         summary = "最佳区域偏下"
     elif area_ratio < 0.62:
-        actions.append(AdjustDistanceAction(type="adjust_distance", direction="closer", message="靠近一点", confidence=0.76))
+        actions.append(
+            AdjustDistanceAction(
+                type="adjust_distance", direction="closer", message="靠近一点", confidence=0.76
+            )
+        )
         priority = "distance"
         problem = _problem("crop_tighter", "主体占比偏小")
         reason = "ShutterMuse 推荐裁掉较多边缘区域"
@@ -217,6 +236,10 @@ def _bbox_to_guidance(
         reason=reason,
         summary=summary,
         confidence=max(action.confidence or 0.7 for action in actions[:2]),
+        composition=CompositionRecommendation(
+            decision="keep" if area_ratio > 0.9 else "refine",
+            bbox_norm=bbox_norm,
+        ),
     )
 
 
@@ -270,5 +293,7 @@ class RealShutterMuseAdapter:
                     detail=f"ShutterMuse dependencies are not installed: {exc}",
                 ) from exc
             except Exception as exc:  # noqa: BLE001
-                raise HTTPException(status_code=503, detail=f"ShutterMuse model failed to load: {exc}") from exc
+                raise HTTPException(
+                    status_code=503, detail=f"ShutterMuse model failed to load: {exc}"
+                ) from exc
         return self._model, self._processor

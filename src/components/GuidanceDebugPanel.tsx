@@ -2,12 +2,17 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
+import { GuidanceDebugState } from "@/ai_engine/guidancePipeline";
+import { CompositionMode } from "@/types/guidance";
+import { appConfig } from "@/config";
 
 interface GuidanceDebugPanelProps {
   stableGuidance: StableGuidance | null;
   visionFeatures: VisionFeatures | null;
   latencyMs: number | null;
   processing: boolean;
+  debugState: GuidanceDebugState;
+  compositionMode: CompositionMode;
 }
 
 function actionLabel(stableGuidance: StableGuidance | null): string {
@@ -40,13 +45,21 @@ export function GuidanceDebugPanel({
   stableGuidance,
   visionFeatures,
   latencyMs,
-  processing
+  processing,
+  debugState,
+  compositionMode
 }: GuidanceDebugPanelProps) {
   const guidance = stableGuidance?.guidance;
 
   return (
     <View pointerEvents="none" style={styles.panel}>
       <Text style={styles.line}>Latency: {latencyMs ?? "-"}ms {processing ? "processing" : "idle"}</Text>
+      <Text style={styles.line}>Request: {debugState.requestId ?? "-"}</Text>
+      <Text style={styles.line}>Frame: {debugState.latestAcceptedFrameId}/{debugState.latestProcessedFrameId}/{debugState.latestRenderedFrameId}</Text>
+      <Text style={styles.line}>Stale dropped: {debugState.droppedStaleResultCount}</Text>
+      <Text style={styles.line}>Timing: {debugState.visionLatencyMs ?? "-"}/{debugState.guidanceLatencyMs ?? "-"}/{debugState.totalLatencyMs ?? "-"}ms</Text>
+      <Text style={styles.line}>Mock: {String(appConfig.mockEnabled)} | Mode: {compositionMode}</Text>
+      <Text style={styles.line}>Engine: {debugState.guidanceEngine ?? "-"}</Text>
       <Text style={styles.line}>Vision: {visionLabel(visionFeatures)}</Text>
       <Text style={styles.line}>Action: {actionLabel(stableGuidance)}</Text>
       <Text style={styles.line}>Priority: {guidance?.priority ?? "-"}</Text>

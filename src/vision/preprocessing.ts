@@ -8,6 +8,7 @@ import {
   VisionFeatures
 } from "@/types/vision";
 import { buildMockVisionFeatures } from "./featureBuilder";
+import { isMockEnabled } from "@/config";
 
 export interface VisionPreprocessor {
   preprocess(frame: CapturedFrame): Promise<VisionFeatures>;
@@ -159,7 +160,12 @@ export class MediaPipeVisionPreprocessor implements VisionPreprocessor {
   constructor(options: MediaPipeVisionPreprocessorOptions) {
     this.endpoint = endpointOrUndefined(options.endpoint);
     this.timeoutMs = options.timeoutMs;
-    this.fallbackToMock = options.fallbackToMock ?? true;
+    this.fallbackToMock =
+      options.fallbackToMock === true &&
+      isMockEnabled(
+        typeof __DEV__ !== "undefined" && __DEV__,
+        process.env.EXPO_PUBLIC_ENABLE_MOCK
+      );
   }
 
   async preprocess(frame: CapturedFrame): Promise<VisionFeatures> {

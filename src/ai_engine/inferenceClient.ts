@@ -1,161 +1,116 @@
 import { CapturedFrame } from "@/types/frame";
-import { GuidanceOutput } from "@/types/guidance";
+import { CompositionMode, GuidanceOutput } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
-import { buildGuidancePrompt, guidanceJsonSchema } from "./promptManager";
 import { parseGuidanceJson } from "./jsonParser";
 import { createMockGuidance } from "./mockGuidance";
 
 export interface GuidanceEngineInput {
   frame: CapturedFrame;
-  visionFeatures: VisionFeatures;
+  compositionMode: CompositionMode;
+}
+
+export interface AnalyzeResult {
+  guidance: GuidanceOutput;
+  visionFeatures: VisionFeatures | null;
 }
 
 export interface GuidanceInferenceClient {
-  infer(input: GuidanceEngineInput): Promise<GuidanceOutput>;
-  inferBatch(inputs: GuidanceEngineInput[]): Promise<GuidanceOutput[]>;
+  infer(input: GuidanceEngineInput): Promise<AnalyzeResult>;
+}
+
+export class GuidanceApiError extends Error {
+  constructor(public readonly code: string, message: string) {
+    super(message);
+    this.name = "GuidanceApiError";
+  }
 }
 
 interface ShutterMuseHttpClientOptions {
   endpoint: string | undefined;
-  batchEndpoint: string | undefined;
   timeoutMs: number;
+  mockEnabled: boolean;
 }
 
 function endpointOrUndefined(value?: string): string | undefined {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
+  if (!trimmed) return undefined;
+  if (trimmed.endsWith("/guidance")) return trimmed.replace(/\/guidance$/, "/v1/analyze");
+  return trimmed;
 }
 
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(url, {
-      ...init,
-      signal: controller.signal
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function serializeInput(input: GuidanceEngineInput, retryReason?: string): Record<string, unknown> {
-  const payload: Record<string, unknown> = {
+function serializeInput(input: GuidanceEngineInput): Record<string, unknown> {
+  return {
     frame_id: input.frame.frameId,
     timestamp: input.frame.timestamp,
+    mode: "composition",
+    composition_mode: input.compositionMode,
+    target_ratio: "3:4",
+    language: "zh-CN",
     image: {
       base64: input.frame.image.base64,
-      uri: input.frame.image.uri,
       width: input.frame.image.width,
       height: input.frame.image.height,
       mime_type: input.frame.image.mimeType
-    },
-    vision_features: input.visionFeatures,
-    prompt: buildGuidancePrompt(input.visionFeatures),
-    schema: guidanceJsonSchema
+    }
   };
-
-  if (retryReason) {
-    payload.retry = { reason: retryReason };
-  }
-
-  return payload;
 }
 
-async function parseHttpResponse(response: Response): Promise<GuidanceOutput> {
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`ShutterMuse API failed with HTTP ${response.status}: ${text.slice(0, 160)}`);
-  }
-
-  return parseGuidanceJson(text);
+function parseVisionFeatures(value: unknown): VisionFeatures | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const features = (raw.vision_features ?? raw.visionFeatures) as VisionFeatures | undefined;
+  return features ?? null;
 }
 
 export class ShutterMuseHttpClient implements GuidanceInferenceClient {
   private readonly endpoint: string | undefined;
-  private readonly batchEndpoint: string | undefined;
-  private readonly timeoutMs: number;
 
-  constructor(options: ShutterMuseHttpClientOptions) {
+  constructor(private readonly options: ShutterMuseHttpClientOptions) {
     this.endpoint = endpointOrUndefined(options.endpoint);
-    this.batchEndpoint = endpointOrUndefined(options.batchEndpoint);
-    this.timeoutMs = options.timeoutMs;
   }
 
-  async infer(input: GuidanceEngineInput): Promise<GuidanceOutput> {
+  async infer(input: GuidanceEngineInput): Promise<AnalyzeResult> {
     if (!this.endpoint) {
-      return createMockGuidance(input.visionFeatures);
-    }
-
-    let retryReason: string | undefined;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await fetchWithTimeout(
-        this.endpoint,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(serializeInput(input, retryReason))
-        },
-        this.timeoutMs
-      );
-
-      try {
-        return await parseHttpResponse(response);
-      } catch (error) {
-        retryReason = error instanceof Error ? error.message : String(error);
-        if (attempt === 1) {
-          throw error;
-        }
+      if (this.options.mockEnabled) {
+        const guidance = createMockGuidance(input.frame.frameId);
+        return { guidance, visionFeatures: null };
       }
+      throw new GuidanceApiError("AI_UNAVAILABLE", "AI 暂时不可用");
     }
 
-    return createMockGuidance(input.visionFeatures);
-  }
-
-  async inferBatch(inputs: GuidanceEngineInput[]): Promise<GuidanceOutput[]> {
-    if (inputs.length === 0) {
-      return [];
-    }
-
-    if (!this.endpoint) {
-      return inputs.map((input) => createMockGuidance(input.visionFeatures));
-    }
-
-    if (this.batchEndpoint && inputs.length > 1) {
-      const response = await fetchWithTimeout(
-        this.batchEndpoint,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            requests: inputs.map((input) => serializeInput(input))
-          })
-        },
-        this.timeoutMs
-      );
-
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
+    try {
+      const response = await fetch(this.endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(serializeInput(input)),
+        signal: controller.signal
+      });
       const text = await response.text();
       if (!response.ok) {
-        throw new Error(`ShutterMuse batch API failed with HTTP ${response.status}: ${text.slice(0, 160)}`);
+        let message = response.status >= 500 ? "AI 暂时不可用" : "连接失败";
+        try {
+          const errorBody = JSON.parse(text) as { error?: { message?: string } };
+          message = errorBody.error?.message ?? message;
+        } catch {
+          // Keep the short user-facing status.
+        }
+        throw new GuidanceApiError(`HTTP_${response.status}`, message);
       }
-
-      const parsed = JSON.parse(text) as unknown;
-      if (!Array.isArray(parsed)) {
-        throw new Error("ShutterMuse batch API must return a JSON array.");
+      const raw = JSON.parse(text) as unknown;
+      return {
+        guidance: parseGuidanceJson(text),
+        visionFeatures: parseVisionFeatures(raw)
+      };
+    } catch (error) {
+      if (error instanceof GuidanceApiError) throw error;
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new GuidanceApiError("GUIDANCE_TIMEOUT", "AI 构图超时");
       }
-
-      return parsed.map((item) => parseGuidanceJson(JSON.stringify(item)));
+      throw new GuidanceApiError("NETWORK_ERROR", "连接失败");
+    } finally {
+      clearTimeout(timer);
     }
-
-    return Promise.all(inputs.map((input) => this.infer(input)));
   }
 }

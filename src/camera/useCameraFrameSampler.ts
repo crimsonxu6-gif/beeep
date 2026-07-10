@@ -2,7 +2,7 @@ import { RefObject, useEffect, useRef } from "react";
 import { CameraView } from "expo-camera";
 
 import { CapturedFrame } from "@/types/frame";
-import { CameraController } from "./CameraController";
+import { AnalysisFrameController } from "./AnalysisFrameController";
 import { FrameSampler } from "./FrameSampler";
 
 interface UseCameraFrameSamplerOptions {
@@ -21,7 +21,7 @@ export function useCameraFrameSampler({
   onError
 }: UseCameraFrameSamplerOptions): void {
   const frameIdRef = useRef(1);
-  const controllerRef = useRef(new CameraController());
+  const controllerRef = useRef(new AnalysisFrameController());
   const samplerRef = useRef(new FrameSampler(fps));
   const inFlightRef = useRef(false);
   const onFrameRef = useRef(onFrame);
@@ -54,7 +54,7 @@ export function useCameraFrameSampler({
 
       inFlightRef.current = true;
       void controllerRef.current
-        .captureFrame(camera, frameIdRef.current)
+        .captureAnalysisFrame(camera, frameIdRef.current)
         .then((frame) => {
           if (!frame) {
             return;

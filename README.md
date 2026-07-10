@@ -1,170 +1,120 @@
-# AI Photo Coach
+# Beeep AI Photo Coach
 
-Mobile AI photography assistant prototype based on the ShutterMuse-style guidance architecture.
-
-## Architecture
+Expo + FastAPI mobile photography assistant. The MVP now implements the complete loop:
 
 ```text
-Camera Input
-  -> Frame Sampler (2-5 FPS)
-  -> Vision Preprocessing Layer
-  -> AI Guidance Engine (ShutterMuse HTTP API or local mock)
-  -> Strict JSON Parser + Retry
-  -> Stability Filter (debounce + consistency + smoothing)
-  -> UI Overlay (direction arrows + short action message)
+Camera preview
+  -> 0.5-1 FPS compressed analysis frame
+  -> POST /v1/analyze (image uploaded once)
+  -> MediaPipe reusable vision processor
+  -> rules or ShutterMuse guidance service
+  -> normalized composition / pose adapter
+  -> latest-wins + stale frame guard + stability filter
+  -> one short overlay action
 ```
 
-## Run
+The model runs on the server. The phone owns camera preview, low-rate sampling, overlays, capture, preview and saving.
 
-```bash
+## Mobile setup
+
+```powershell
+cd D:\beeep
 npm install
-npm start
+Copy-Item .env.example .env
+npx expo start --dev-client
 ```
 
-Open the project in an Expo development build or a simulator. Without backend URLs, the app falls back to local mock vision/guidance so the prototype remains runnable.
+Set `EXPO_PUBLIC_ANALYZE_API_URL` to the backend address reachable by the phone. Do not hard-code a LAN IP in source code.
 
-## FastAPI + MediaPipe backend
+The default route remains the home screen. Open the camera from the home capture button. The camera supports automatic, centered, left-thirds and right-thirds composition modes.
 
-```bash
-cd backend
+## Backend setup
+
+```powershell
+cd D:\beeep
 python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+.venv\Scripts\Activate.ps1
+pip install -r backend\requirements.txt
+cd backend
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Set these for a phone on the same Wi-Fi, replacing the IP with your computer LAN IP:
+Endpoints:
 
-```bash
-EXPO_PUBLIC_MEDIAPIPE_VISION_API_URL=http://192.168.0.106:8000/vision/features
-EXPO_PUBLIC_SHUTTERMUSE_API_URL=http://192.168.0.106:8000/guidance
+- `POST /v1/analyze`: the production mobile endpoint; performs vision and guidance in one upload.
+- `GET /v1/status`: active guidance engine and readiness.
+- `GET /health`: liveness.
+- `GET /ready`: readiness.
+- `/vision/features` and `/guidance`: retained for older clients only.
+
+The server does not persist uploaded analysis images and must not log Base64 data. Image requests are limited by MIME, request size, dimensions and total pixels. For production set explicit `CORS_ALLOWED_ORIGINS`, optionally set `BEEEP_API_KEY`, and run one worker per MediaPipe detector set. Each worker owns one face and pose detector; calls inside a worker are lock-protected.
+
+## Mock policy
+
+Mock output is disabled by default and can never activate in a production JS bundle. It is enabled only when both conditions are true:
+
+```text
+__DEV__ === true
+EXPO_PUBLIC_ENABLE_MOCK=1
 ```
 
-If `EXPO_PUBLIC_MEDIAPIPE_VISION_API_URL` is omitted and `EXPO_PUBLIC_SHUTTERMUSE_API_URL`
-ends with `/guidance`, the app derives `/vision/features` automatically.
+Without an API URL or when the API fails, the app shows a short connection/error state instead of fabricated photography advice.
 
-The backend exposes:
+## Guidance engine
 
-- `POST /vision/features`: MediaPipe face detection, person bbox, pose keypoints, scene features.
-- `POST /guidance`: strict `GuidanceOutput` JSON for `move_camera`, `adjust_pose`, `framing_hint`, `lighting_hint`, and `hold`.
+Use the built-in deterministic engine during local development:
 
-## Development build
-
-Expo Go version mismatches can be avoided with an EAS development build:
-
-```bash
-npm install
-eas login
-eas init
-npm run build:ios:dev
+```env
+GUIDANCE_ENGINE=rules
 ```
 
-For iPhone installation, EAS will ask for Apple credentials and device/profile setup during the iOS build. The project uses `expo-dev-client`, so after the build is installed you can connect it to the local Metro server with `npx expo start --dev-client`.
+Switch to the server-side ShutterMuse adapter after the repository and weights are installed:
 
-Android test APK:
-
-```bash
-npm run build:android:dev
-```
-
-## ShutterMuse API contract
-
-Set `EXPO_PUBLIC_SHUTTERMUSE_API_URL` to a service that accepts:
-
-```json
-{
-  "frame_id": 123,
-  "timestamp": 123456,
-  "image": {
-    "base64": "...",
-    "width": 1080,
-    "height": 1920,
-    "mime_type": "image/jpeg"
-  },
-  "vision_features": {},
-  "prompt": "strict JSON prompt",
-  "schema": {}
-}
-```
-
-The service must return strict JSON:
-
-```json
-{
-  "priority": "composition",
-  "problem": {
-    "type": "subject_position",
-    "description": "主体偏右"
-  },
-  "actions": [
-    {
-      "type": "move_camera",
-      "direction": "left",
-      "message": "往左一点",
-      "confidence": 0.85
-    }
-  ],
-  "message": "往左一点",
-  "reason": "主体中心位于画面右侧",
-  "summary": "主体偏右",
-  "confidence": 0.85
-}
-```
-
-Rules:
-
-- Return at most 2 actions.
-- `message` must be Chinese, immediately actionable, and no more than 10 characters.
-- `problem` and `reason` are for developer debugging; the user only sees `message`.
-- Prefer one strongest action over a list of comments.
-- If the frame is good, return `{ "type": "hold", "message": "保持角度" }`.
-- Additional action types include `lighting_hint`, `adjust_distance`, `adjust_angle`, and `hold`.
-
-Optional batch endpoint: set `EXPO_PUBLIC_SHUTTERMUSE_BATCH_API_URL`; it receives `{ "requests": [...] }` and returns an array of guidance objects.
-
-## Real ShutterMuse backend mode
-
-The mobile app does not embed ShutterMuse. Keep ShutterMuse behind the FastAPI
-backend and switch the backend mode when model weights are available:
-
-```bash
-BEEEP_GUIDANCE_ENGINE=shuttermuse
+```env
+GUIDANCE_ENGINE=shuttermuse
 SHUTTERMUSE_REPO_PATH=D:\models\ShutterMuse
 SHUTTERMUSE_MODEL_PATH=D:\models\Qwen3-VL-8B-Instruct
 SHUTTERMUSE_LORA_PATH=D:\models\ShutterMuse-LoRA
 SHUTTERMUSE_DEVICE=cuda
 ```
 
-Default mode remains `BEEEP_GUIDANCE_ENGINE=rule`, so local mobile previews keep
-working without GPU dependencies. Check the active backend mode with
-`GET /guidance/status`.
+The service interface and adapter are complete. The current real adapter loads ShutterMuse's photographer-side inference script lazily and maps its crop box to normalized `bbox_norm` plus actions. The strict 17-keypoint pose schema and parser are ready; wiring the released subject-side checkpoint output is still pending.
 
-## Modules
+## Capture flow
 
-- `src/camera`: 2-5 FPS frame sampling, no per-frame LLM calls.
-- `src/vision`: MediaPipe backend adapter with mock fallback for face/person/pose/scene features.
-- `src/ai_engine`: prompt manager, HTTP client, batch interface, strict JSON parser, mock engine.
-- `src/stability`: multi-frame consistency, confidence threshold, debounce, bbox smoothing.
-- `src/ui`: camera overlay arrows and <=10 character action message.
+Analysis frames and final photos use separate controllers:
 
-## Developer debug panel
+- analysis: JPEG Base64, quality `0.28`, default `0.75 FPS`;
+- final photo: processed image, quality `1.0`, no Base64 upload;
+- capturing and photo preview pause automatic analysis;
+- preview supports retake, save, return to camera and system gallery selection.
 
-Set `EXPO_PUBLIC_DEBUG_PANEL=1` to overlay developer diagnostics in the camera:
+Camera shutter animation, flash and shutter sound are disabled in the app configuration used by these controllers.
 
-- latency and processing state
-- summarized MediaPipe vision features
-- current action, priority, problem, and reason
+## Environment reference
 
-## UI direction
+See [.env.example](./.env.example). Important app flags:
 
-- Minimal, tool-like mobile interface with iOS-native spacing and system typography.
-- Main screens: home dashboard, live camera workspace, composition coach, and profile/services.
-- Camera workspace keeps guidance controls close to the shutter: gallery, capture, composition mode, and pose recommendation.
-- Visual style avoids decorative assets; UI uses soft geometric surfaces, compact controls, and concise action text.
+- `EXPO_PUBLIC_ANALYZE_API_URL`: unified backend endpoint.
+- `EXPO_PUBLIC_ENABLE_MOCK`: development-only explicit mock switch.
+- `EXPO_PUBLIC_DEBUG_PANEL`: shows request/frame IDs, stale drops, timing, engine and mode.
+- `EXPO_PUBLIC_SAMPLE_FPS`: clamped to `0.5-1` while sampling uses `takePictureAsync`.
+- `EXPO_PUBLIC_VISION_TIMEOUT_MS` / `EXPO_PUBLIC_GUIDANCE_TIMEOUT_MS`: separate status budgets.
 
-## Production integration notes
+Long term, replace `takePictureAsync` sampling with CameraX `ImageAnalysis`, AVFoundation or a native frame processor. The pipeline API can remain unchanged.
 
-- `MediaPipeVisionPreprocessor` calls the backend vision API and falls back to local mock features when no endpoint is configured.
-- Put the real ShutterMuse model behind `POST /guidance`; avoid embedding the model directly in the mobile app.
-- Keep `EXPO_PUBLIC_SAMPLE_FPS` between `2` and `5`.
-- Keep `EXPO_PUBLIC_AI_TIMEOUT_MS` near the target update budget; default is `280ms`.
+## Checks
+
+```powershell
+npm run check
+cd backend
+..\.venv\Scripts\python.exe -m pytest -q
+..\.venv\Scripts\ruff.exe check .
+```
+
+## Current limitations
+
+- ShutterMuse weights are not included in this repository.
+- Subject-side ShutterMuse inference still needs to be connected to the strict COCO-17 adapter.
+- MediaPipe currently runs on the backend; a later mobile-native visual layer will reduce latency and traffic.
+- Gallery images currently enter preview; offline gallery scoring is not part of this MVP.

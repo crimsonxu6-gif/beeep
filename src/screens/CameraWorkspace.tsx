@@ -14,6 +14,8 @@ import { GuidanceOverlay, OverlaySize } from "@/components/GuidanceOverlay";
 import { StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
 import { colors, radii, typography } from "@/theme/design";
+import { CompositionMode } from "@/types/guidance";
+import { GuidanceDebugState } from "@/ai_engine/guidancePipeline";
 
 interface CameraWorkspaceProps {
   cameraRef: RefObject<CameraView | null>;
@@ -27,6 +29,12 @@ interface CameraWorkspaceProps {
   processing: boolean;
   error: string | null;
   onBack: () => void;
+  onCapture: () => void;
+  onOpenGallery: () => void;
+  capturing: boolean;
+  compositionMode: CompositionMode;
+  onCompositionModeChange: (mode: CompositionMode) => void;
+  debugState: GuidanceDebugState;
 }
 
 export function CameraWorkspace({
@@ -40,7 +48,13 @@ export function CameraWorkspace({
   latencyMs,
   processing,
   error,
-  onBack
+  onBack,
+  onCapture,
+  onOpenGallery,
+  capturing,
+  compositionMode,
+  onCompositionModeChange,
+  debugState
 }: CameraWorkspaceProps) {
   const granted = Boolean(permission?.granted);
 
@@ -63,6 +77,8 @@ export function CameraWorkspace({
             processing={processing}
             latencyMs={latencyMs}
             error={error}
+            debugState={debugState}
+            compositionMode={compositionMode}
           />
         </>
       ) : (
@@ -90,16 +106,21 @@ export function CameraWorkspace({
       <View style={styles.modeRail}>
         <View style={styles.modePill}>
           <Aperture size={16} strokeWidth={2.2} color={colors.white} />
-          <Text style={styles.modeText}>构图模式</Text>
+          <Text style={styles.modeText}>{compositionMode === "auto" ? "自动构图" : compositionMode === "thirds_left" ? "左三分" : compositionMode === "thirds_right" ? "右三分" : "居中"}</Text>
+        </View>
+        <View style={styles.modeChoices}>
+          {(["auto", "center", "thirds_left", "thirds_right"] as const).map((mode) => (
+            <Pressable key={mode} style={[styles.modeDot, mode === compositionMode && styles.modeDotActive]} onPress={() => onCompositionModeChange(mode)} />
+          ))}
         </View>
       </View>
 
       <View style={styles.captureDock}>
-        <Pressable style={styles.sideControl}>
+        <Pressable style={styles.sideControl} onPress={onOpenGallery}>
           <Images size={22} strokeWidth={2.2} color={colors.white} />
           <Text style={styles.sideControlText}>图库</Text>
         </Pressable>
-        <Pressable style={styles.shutter}>
+        <Pressable style={[styles.shutter, capturing && styles.shutterDisabled]} onPress={onCapture} disabled={capturing}>
           <View style={styles.shutterInner} />
         </Pressable>
         <View style={styles.dockSpacer} />
@@ -197,6 +218,9 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.white
   },
+  modeChoices: { alignItems: "center", gap: 7, paddingVertical: 8 },
+  modeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.38)" },
+  modeDotActive: { width: 18, backgroundColor: colors.white },
   captureDock: {
     position: "absolute",
     left: 22,
@@ -238,5 +262,6 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: radii.round,
     backgroundColor: colors.white
-  }
+  },
+  shutterDisabled: { opacity: 0.5 }
 });
