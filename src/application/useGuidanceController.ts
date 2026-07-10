@@ -39,7 +39,7 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
   const pipeline = useMemo(() => new GuidancePipeline({
     client: new ShutterMuseHttpClient({
       endpoint: appConfig.analyzeApiUrl ?? appConfig.shutterMuseApiUrl,
-      timeoutMs: appConfig.guidanceTimeoutMs,
+      timeoutMs: appConfig.visionTimeoutMs + appConfig.guidanceTimeoutMs,
       mockEnabled: appConfig.mockEnabled
     }),
     stabilityFilter: new StabilityFilter(appConfig.stability),
