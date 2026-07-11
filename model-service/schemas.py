@@ -20,6 +20,7 @@ class PhotographerRequest(StrictModel):
     ]
     mode: Literal["composition"] = "composition"
     language: Literal["zh-CN"] = "zh-CN"
+    prompt_mode: Literal["official", "beeep_json"] = "official"
 
 
 class PhotographerResponse(StrictModel):
@@ -31,6 +32,10 @@ class PhotographerResponse(StrictModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
     error_code: str | None = None
     inference_ms: int = Field(ge=0)
+    prompt_mode: Literal["official", "beeep_json"]
+    coordinate_source: Literal[
+        "bbox_norm", "bbox_1000", "bbox_pixels", "official_1000", "official_pixels"
+    ] | None = None
 
     @model_validator(mode="after")
     def validate_bbox(self):
@@ -54,5 +59,7 @@ class ReadinessResponse(StrictModel):
     inference_count: int
     executor_active: bool
     executor_pending: int
+    prompt_mode: str
+    official_coordinate_format: str
     error_code: str | None = None
     error_message: str | None = None

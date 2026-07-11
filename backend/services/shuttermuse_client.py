@@ -22,6 +22,10 @@ class ModelCompositionResult(BaseModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
     error_code: str | None = None
     inference_ms: int = Field(ge=0)
+    prompt_mode: Literal["official", "beeep_json"]
+    coordinate_source: Literal[
+        "bbox_norm", "bbox_1000", "bbox_pixels", "official_1000", "official_pixels"
+    ] | None = None
 
     @model_validator(mode="after")
     def validate_bbox(self):
@@ -56,6 +60,7 @@ class ShutterMuseModelClient:
             "composition_mode": request.composition_mode,
             "mode": "composition",
             "language": request.language,
+            "prompt_mode": settings.shuttermuse_prompt_mode,
         }
         try:
             response = self.http.post(

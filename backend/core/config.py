@@ -20,10 +20,11 @@ class Settings:
     max_image_pixels: int = int(os.getenv("MAX_IMAGE_PIXELS", "2000000"))
     api_key: str = os.getenv("BEEEP_API_KEY", "")
     vision_timeout_ms: int = int(os.getenv("VISION_TIMEOUT_MS", "1000"))
-    guidance_timeout_ms: int = int(os.getenv("GUIDANCE_TIMEOUT_MS", "5000"))
+    guidance_timeout_ms: int = int(os.getenv("GUIDANCE_TIMEOUT_MS", "17000"))
     shuttermuse_service_url: str = os.getenv("SHUTTERMUSE_SERVICE_URL", "http://127.0.0.1:8100").rstrip("/")
     shuttermuse_service_api_key: str = os.getenv("SHUTTERMUSE_SERVICE_API_KEY", "")
     shuttermuse_debug_output: bool = os.getenv("SHUTTERMUSE_DEBUG_OUTPUT", "0") == "1"
+    shuttermuse_prompt_mode: str = os.getenv("SHUTTERMUSE_PROMPT_MODE", "official").lower()
 
 
 settings = Settings()

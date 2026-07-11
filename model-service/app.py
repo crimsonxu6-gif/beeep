@@ -93,6 +93,8 @@ def photographer_analyze(request: PhotographerRequest, x_api_key: str | None = H
         confidence=parsed.confidence,
         error_code=parsed.error_code,
         inference_ms=inference_ms,
+        prompt_mode=request.prompt_mode,
+        coordinate_source=parsed.coordinate_source,
     )
 
 

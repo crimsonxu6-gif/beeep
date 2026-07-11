@@ -23,7 +23,7 @@ export const appConfig = {
   mockEnabled: isMockEnabled(runtimeIsDev, process.env.EXPO_PUBLIC_ENABLE_MOCK),
   sampleFps: clamp(numberFromEnv("EXPO_PUBLIC_SAMPLE_FPS", 0.75), 0.5, 1),
   visionTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_VISION_TIMEOUT_MS", 1000), 250, 5000),
-  guidanceTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_GUIDANCE_TIMEOUT_MS", 5000), 500, 15000),
+  guidanceTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_GUIDANCE_TIMEOUT_MS", 19000), 500, 30000),
   analyzeApiUrl: process.env.EXPO_PUBLIC_ANALYZE_API_URL,
   shutterMuseApiUrl: process.env.EXPO_PUBLIC_SHUTTERMUSE_API_URL,
   stability: {

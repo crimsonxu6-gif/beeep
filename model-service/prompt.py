@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+from typing import Literal
+
+PromptMode = Literal["official", "beeep_json"]
+
 COMPOSITION_PREFERENCES = {
     "auto": "由模型自主判断最自然的主体位置，不强制居中或三分构图。",
     "center": "在不破坏画面平衡的前提下，让主要主体倾向画面中心。",
@@ -8,22 +14,49 @@ COMPOSITION_PREFERENCES = {
 }
 
 
-def build_beeep_photographer_prompt(
+def build_official_photographer_prompt(target_ratio: str) -> str:
+    """Keep the released photographer-side task wording and output contract."""
+    return (
+        f"请找出图片中构图最好的区域，请按照{target_ratio}的比例输出bounding box，"
+        "并按照(x1,y1),(x2,y2)的格式返回一个bounding box，其中(x1,y1)是左上角的顶点，"
+        "(x2,y2)是右下角的顶点。"
+    )
+
+
+def build_beeep_json_photographer_prompt(
     target_ratio: str,
     composition_mode: str,
     mode: str = "composition",
     language: str = "zh-CN",
 ) -> str:
     preference = COMPOSITION_PREFERENCES[composition_mode]
-    # The first paragraph preserves ShutterMuse's released photographer-side task wording.
     return (
-        f"请找出图片中构图最好的区域，请按照{target_ratio}的比例输出bounding box，"
-        "并按照(x1,y1),(x2,y2)的格式返回一个bounding box，其中(x1,y1)是左上角的顶点，"
-        "(x2,y2)是右下角的顶点。\n"
-        f"这是 Beeep 的 photographer-side {mode} 任务，输出语言标记为 {language}。"
-        "先判断当前画面应 keep、refine 还是 reject。"
+        f"你正在执行 Beeep 的 photographer-side {mode} 任务。"
+        f"目标画幅比例是 {target_ratio}，输出语言标记是 {language}。"
         f"构图偏好：{preference}"
-        "decision 只允许 keep、refine、reject。只输出一个 JSON 对象，不要输出 Markdown 或解释。"
-        '格式示例：{"decision":"refine","bbox_norm":[0.08,0.11,0.91,0.94],"confidence":0.84}。'
-        "bbox_norm 必须使用 0 到 1 坐标；keep 使用 [0,0,1,1]；reject 使用 null。"
+        "判断当前构图属于 keep、refine 或 reject，并给出推荐保留区域。"
+        "只输出严格 JSON，不要输出 Markdown、解释或额外文本。"
+        '格式：{"decision":"keep | refine | reject",'
+        '"bbox_norm":[x1,y1,x2,y2] | null,"confidence":0.0}。'
+        "bbox_norm 必须使用 0 到 1 的归一化坐标。"
+        "keep 应返回接近完整画面的构图框；reject 可以返回 null。"
     )
+
+
+def build_photographer_prompt(
+    prompt_mode: PromptMode,
+    target_ratio: str,
+    composition_mode: str,
+    mode: str = "composition",
+    language: str = "zh-CN",
+) -> str:
+    if prompt_mode == "official":
+        return build_official_photographer_prompt(target_ratio)
+    if prompt_mode == "beeep_json":
+        return build_beeep_json_photographer_prompt(
+            target_ratio,
+            composition_mode,
+            mode,
+            language,
+        )
+    raise ValueError(f"Unsupported prompt mode: {prompt_mode}")

@@ -85,6 +85,7 @@ def test_model_bbox_becomes_normalized_product_guidance() -> None:
         bbox_norm=(0.05, 0.1, 0.55, 0.9),
         confidence=0.84,
         inference_ms=400,
+        prompt_mode="official",
     )
     output = GuidanceAdapter().from_model_composition(result, frame_id=1)
     assert output.composition is not None
@@ -99,6 +100,7 @@ def test_invalid_model_output_never_fabricates_bbox() -> None:
         status="low_confidence",
         error_code="INVALID_MODEL_OUTPUT",
         inference_ms=400,
+        prompt_mode="official",
     )
     output = GuidanceAdapter().from_model_composition(result, frame_id=1)
     assert output.composition is None

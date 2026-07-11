@@ -4,7 +4,9 @@ import ast
 import json
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
+
+CoordinateSource = Literal["bbox_norm", "bbox_1000", "bbox_pixels", "official_1000", "official_pixels"]
 
 
 @dataclass(frozen=True)
@@ -14,6 +16,7 @@ class ParsedComposition:
     bbox_norm: tuple[float, float, float, float] | None
     confidence: float | None
     error_code: str | None = None
+    coordinate_source: CoordinateSource | None = None
 
 
 def _first_object(raw: str) -> dict[str, Any] | None:
@@ -53,62 +56,62 @@ def _bbox_values(value: Any) -> list[float] | None:
             return [float(item) for item in value]
         except (TypeError, ValueError):
             return None
-    if isinstance(value, str):
-        return _legacy_bbox(value)
     return None
 
 
-def _legacy_bbox(raw: str) -> list[float] | None:
+def _official_bbox(raw: str) -> list[float] | None:
     number = r"[-+]?\d*\.?\d+"
     paired = re.search(
         rf"\(\s*({number})\s*,\s*({number})\s*\)\s*,\s*"
         rf"\(\s*({number})\s*,\s*({number})\s*\)",
         raw,
     )
-    if paired:
-        return [float(value) for value in paired.groups()]
-    bracketed = re.search(
-        rf"\[\s*({number})\s*,\s*({number})\s*,\s*({number})\s*,\s*({number})\s*\]",
-        raw,
-    )
-    return [float(value) for value in bracketed.groups()] if bracketed else None
+    return [float(value) for value in paired.groups()] if paired else None
 
 
 def _normalize_bbox(
     values: list[float] | None,
     image_width: int,
     image_height: int,
-    source_is_normalized: bool,
+    source: CoordinateSource,
 ) -> tuple[float, float, float, float] | None:
     if not values or len(values) != 4 or image_width <= 0 or image_height <= 0:
         return None
-    if source_is_normalized:
+    if source == "bbox_norm":
         normalized = values
+    elif source in {"bbox_1000", "official_1000"}:
+        normalized = [value / 1000 for value in values]
     else:
-        maximum = max(abs(value) for value in values)
-        if maximum <= 1.0:
-            normalized = values
-        elif maximum <= 1000.0:
-            normalized = [values[0] / 1000, values[1] / 1000, values[2] / 1000, values[3] / 1000]
-        else:
-            normalized = [
-                values[0] / image_width,
-                values[1] / image_height,
-                values[2] / image_width,
-                values[3] / image_height,
-            ]
+        normalized = [
+            values[0] / image_width,
+            values[1] / image_height,
+            values[2] / image_width,
+            values[3] / image_height,
+        ]
     x1, y1, x2, y2 = normalized
     if not (0 <= x1 < x2 <= 1 and 0 <= y1 < y2 <= 1):
         return None
     return x1, y1, x2, y2
 
 
-def parse_photographer_output(raw: str, image_width: int, image_height: int) -> ParsedComposition:
+def _is_full_frame(bbox: tuple[float, float, float, float]) -> bool:
+    x1, y1, x2, y2 = bbox
+    return x1 <= 0.02 and y1 <= 0.02 and x2 >= 0.98 and y2 >= 0.98
+
+
+def parse_photographer_output(
+    raw: str,
+    image_width: int,
+    image_height: int,
+    *,
+    prompt_mode: Literal["official", "beeep_json"] = "beeep_json",
+    official_coordinate_format: Literal["norm1000", "pixels"] = "norm1000",
+) -> ParsedComposition:
     obj = _first_object(raw)
     decision: str | None = None
     confidence: float | None = None
     values: list[float] | None = None
-    normalized_source = False
+    source: CoordinateSource | None = None
 
     if obj is not None:
         raw_decision = obj.get("decision")
@@ -118,30 +121,42 @@ def parse_photographer_output(raw: str, image_width: int, image_height: int) -> 
             confidence = float(obj["confidence"])
             if not 0 <= confidence <= 1:
                 return ParsedComposition("low_confidence", None, None, None, "INVALID_MODEL_OUTPUT")
-        if "bbox_norm" in obj:
-            normalized_source = True
-            values = _bbox_values(obj.get("bbox_norm"))
-        else:
-            candidate = obj
+        for field, coordinate_source in (
+            ("bbox_norm", "bbox_norm"),
+            ("bbox_1000", "bbox_1000"),
+            ("bbox_pixels", "bbox_pixels"),
+        ):
+            if field in obj:
+                values = _bbox_values(obj[field])
+                source = coordinate_source
+                break
+        if values is None and prompt_mode == "official":
             instances = obj.get("instance_info")
             if isinstance(instances, list) and instances and isinstance(instances[0], dict):
-                candidate = instances[0]
-            for key in ("bbox", "composition_xy", "composition_bbox"):
-                if key in candidate:
-                    values = _bbox_values(candidate[key])
-                    break
+                composition_xy = instances[0].get("composition_xy")
+                if isinstance(composition_xy, str):
+                    values = _official_bbox(composition_xy)
+                    source = (
+                        "official_1000"
+                        if official_coordinate_format == "norm1000"
+                        else "official_pixels"
+                    )
 
-    if values is None:
-        values = _legacy_bbox(raw)
-    bbox = _normalize_bbox(values, image_width, image_height, normalized_source)
+    if values is None and prompt_mode == "official":
+        values = _official_bbox(raw)
+        source = "official_1000" if official_coordinate_format == "norm1000" else "official_pixels"
 
-    if decision == "reject" and bbox is None:
+    if decision == "reject" and values is None:
         return ParsedComposition("success", "reject", None, confidence)
-    if bbox is None:
+    if values is None or source is None:
         return ParsedComposition("low_confidence", None, None, confidence, "INVALID_MODEL_OUTPUT")
+
+    bbox = _normalize_bbox(values, image_width, image_height, source)
+    if bbox is None:
+        return ParsedComposition("low_confidence", None, None, confidence, "INVALID_MODEL_OUTPUT", source)
+
     if decision is None:
-        area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
-        decision = "keep" if area >= 0.90 else "refine"
-    if decision == "keep" and bbox != (0.0, 0.0, 1.0, 1.0):
+        decision = "keep" if _is_full_frame(bbox) else "refine"
+    elif decision == "keep" and not _is_full_frame(bbox):
         decision = "refine"
-    return ParsedComposition("success", decision, bbox, confidence)
+    return ParsedComposition("success", decision, bbox, confidence, coordinate_source=source)

@@ -77,11 +77,13 @@ git clone https://github.com/lijayuTnT/ShutterMuse.git D:\models\ShutterMuse
 cd D:\beeep\model-service
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install -r requirements-4bit.txt
+python -m pip install --force-reinstall -r requirements-cuda128.txt
 $env:SHUTTERMUSE_REPO_PATH="D:\models\ShutterMuse"
 $env:SHUTTERMUSE_MODEL_PATH="ShutterMuse/ShutterMuse"
 $env:SHUTTERMUSE_DEVICE="cuda"
-uvicorn app:app --host 0.0.0.0 --port 8100
+$env:SHUTTERMUSE_LOAD_IN_4BIT="1"
+python -m uvicorn app:app --host 0.0.0.0 --port 8100
 ```
 
 Then start Beeep FastAPI with:
@@ -130,14 +132,15 @@ cd backend
 ..\.venv\Scripts\python.exe -m pytest -q
 ..\.venv\Scripts\ruff.exe check .
 cd ..\model-service
-..\.venv\Scripts\python.exe -m pytest -q
-..\.venv\Scripts\ruff.exe check .
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
 ```
 
 ## Current limitations
 
 - ShutterMuse weights are not included in this repository; use the official merged Hugging Face checkpoint.
-- The released model is about 9B BF16 parameters. This workstation's 8 GB RTX 4060 cannot validate the full BF16 configuration without offload or quantization.
+- The released model is about 9B BF16 parameters. This workstation completed a 4-bit
+  smoke test with CPU offload, but full BF16 quality and latency still require a larger GPU.
 - Subject-side ShutterMuse inference still needs to be connected to the strict COCO-17 adapter.
 - The upstream repository currently has no finalized code/model license. Commercial use remains blocked pending explicit terms.
 - MediaPipe currently runs on the backend; a later mobile-native visual layer will reduce latency and traffic.

@@ -13,7 +13,7 @@ from PIL import Image, ImageOps
 
 from config import ModelSettings
 from output_parser import ParsedComposition, parse_photographer_output
-from prompt import build_beeep_photographer_prompt
+from prompt import build_photographer_prompt
 from schemas import PhotographerRequest
 
 logger = logging.getLogger("shuttermuse")
@@ -65,7 +65,8 @@ class ShutterMuseEngine:
         if self.state != "ready" or self.model is None or self.processor is None:
             raise ModelServiceError("MODEL_NOT_READY", "ShutterMuse model is not ready")
         image = self._decode_image(request.image_base64)
-        prompt = build_beeep_photographer_prompt(
+        prompt = build_photographer_prompt(
+            request.prompt_mode,
             request.target_ratio,
             request.composition_mode,
             request.mode,
@@ -78,18 +79,27 @@ class ShutterMuseEngine:
             code = self._classify_exception(exc, "INFERENCE_FAILED")
             raise ModelServiceError(code, str(exc)) from exc
         inference_ms = int((time.perf_counter() - started) * 1000)
-        parsed = parse_photographer_output(raw, image.width, image.height)
+        parsed = parse_photographer_output(
+            raw,
+            image.width,
+            image.height,
+            prompt_mode=request.prompt_mode,
+            official_coordinate_format=self.settings.official_coordinate_format,
+        )
         self.inference_count += 1
         if self.settings.debug_output:
             logger.info(
-                "inference_debug request_id=%s frame_id=%s target_ratio=%s composition_mode=%s "
-                "raw_output=%r parsed_bbox=%s decision=%s confidence=%s inference_ms=%s",
+                "inference_debug request_id=%s frame_id=%s prompt_mode=%s target_ratio=%s "
+                "composition_mode=%s raw_output=%r parsed_bbox=%s coordinate_source=%s "
+                "decision=%s confidence=%s inference_ms=%s",
                 request.request_id,
                 request.frame_id,
+                request.prompt_mode,
                 request.target_ratio,
                 request.composition_mode,
                 raw[:2000],
                 parsed.bbox_norm,
+                parsed.coordinate_source,
                 parsed.decision,
                 parsed.confidence,
                 inference_ms,
@@ -116,11 +126,28 @@ class ShutterMuseEngine:
             "inference_count": self.inference_count,
             "executor_active": executor_active,
             "executor_pending": executor_pending,
+            "prompt_mode": self.settings.prompt_mode,
+            "official_coordinate_format": self.settings.official_coordinate_format,
             "error_code": self.error_code,
             "error_message": self.error_message,
         }
 
     def _validate_configuration(self) -> None:
+        if self.settings.prompt_mode not in {"official", "beeep_json"}:
+            raise ModelServiceError(
+                "INVALID_CONFIGURATION",
+                "SHUTTERMUSE_PROMPT_MODE must be official or beeep_json",
+            )
+        if self.settings.official_coordinate_format not in {"norm1000", "pixels"}:
+            raise ModelServiceError(
+                "INVALID_CONFIGURATION",
+                "SHUTTERMUSE_OFFICIAL_COORDINATES must be norm1000 or pixels",
+            )
+        if self.settings.generation_max_time_ms >= self.settings.inference_timeout_ms:
+            raise ModelServiceError(
+                "INVALID_CONFIGURATION",
+                "Generation deadline must be shorter than model-service inference timeout",
+            )
         if not self.settings.repo_path:
             raise ModelServiceError("REPOSITORY_NOT_CONFIGURED", "SHUTTERMUSE_REPO_PATH is required")
         repository = self.settings.repository()
@@ -179,7 +206,23 @@ class ShutterMuseEngine:
                     load_in_4bit=True,
                     bnb_4bit_compute_dtype=torch.bfloat16,
                     bnb_4bit_quant_type="nf4",
+                    llm_int8_enable_fp32_cpu_offload=self.settings.cpu_offload,
                 )
+                if self.settings.cpu_offload:
+                    offload_folder = self.settings.resolved_offload_folder()
+                    offload_folder.mkdir(parents=True, exist_ok=True)
+                    model_kwargs["max_memory"] = {
+                        0: self.settings.gpu_max_memory,
+                        "cpu": self.settings.cpu_max_memory,
+                    }
+                    model_kwargs["offload_folder"] = str(offload_folder)
+                    model_kwargs["offload_state_dict"] = True
+                    logger.info(
+                        "4-bit CPU offload enabled gpu_max_memory=%s cpu_max_memory=%s folder=%s",
+                        self.settings.gpu_max_memory,
+                        self.settings.cpu_max_memory,
+                        offload_folder,
+                    )
             logger.info("Base model loading source=%s", self.settings.model_path)
             model = Qwen3VLForConditionalGeneration.from_pretrained(
                 self.settings.model_path,
@@ -222,9 +265,21 @@ class ShutterMuseEngine:
         try:
             with Image.open(image_path) as raw_image:
                 image = ImageOps.exif_transpose(raw_image).convert("RGB")
-            prompt = build_beeep_photographer_prompt("3:4", "auto")
+            prompt = build_photographer_prompt(
+                self.settings.prompt_mode,
+                "3:4",
+                "auto",
+            )
             raw = self._generate(image, prompt)
-            parsed = parse_photographer_output(raw, image.width, image.height)
+            if self.settings.debug_output:
+                logger.info("warmup_raw_output=%r", raw[:2000])
+            parsed = parse_photographer_output(
+                raw,
+                image.width,
+                image.height,
+                prompt_mode=self.settings.prompt_mode,
+                official_coordinate_format=self.settings.official_coordinate_format,
+            )
             if parsed.status != "success":
                 raise ModelServiceError("WARMUP_PARSE_FAILED", "Warmup output could not be parsed")
             self.warmup_completed = True
@@ -239,7 +294,7 @@ class ShutterMuseEngine:
         import torch
         from qwen_vl_utils import process_vision_info
 
-        image_for_model = self._resize_for_inference(image)
+        image_for_model = self._resize_for_inference(image, self.settings.input_short_edge)
         messages = [
             {
                 "role": "user",
@@ -267,7 +322,11 @@ class ShutterMuseEngine:
             return_tensors="pt",
         ).to(self.settings.device)
         with torch.inference_mode():
-            generated = self.model.generate(**inputs, max_new_tokens=self.settings.max_new_tokens)
+            generated = self.model.generate(
+                **inputs,
+                max_new_tokens=self.settings.max_new_tokens,
+                max_time=self.settings.generation_max_time_ms / 1000,
+            )
         trimmed = [
             output[len(input_ids) :] for input_ids, output in zip(inputs.input_ids, generated, strict=True)
         ]
