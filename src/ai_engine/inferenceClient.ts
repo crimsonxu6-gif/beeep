@@ -42,7 +42,7 @@ function endpointOrUndefined(value?: string): string | undefined {
   return trimmed;
 }
 
-function serializeInput(input: GuidanceEngineInput): Record<string, unknown> {
+function serializeInput(input: GuidanceEngineInput, streamId: string): Record<string, unknown> {
   return {
     frame_id: input.frame.frameId,
     timestamp: input.frame.timestamp,
@@ -51,6 +51,7 @@ function serializeInput(input: GuidanceEngineInput): Record<string, unknown> {
     target_ratio: "3:4",
     language: "zh-CN",
     requires_person: true,
+    stream_id: streamId,
     image: {
       base64: input.frame.image.base64,
       width: input.frame.image.width,
@@ -69,6 +70,7 @@ function parseVisionFeatures(value: unknown): VisionFeatures | null {
 
 export class ShutterMuseHttpClient implements GuidanceInferenceClient {
   private readonly endpoint: string | undefined;
+  private readonly streamId = `camera_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 
   constructor(private readonly options: ShutterMuseHttpClientOptions) {
     this.endpoint = endpointOrUndefined(options.endpoint);
@@ -95,7 +97,7 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
       const response = await fetch(this.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(serializeInput(input)),
+        body: JSON.stringify(serializeInput(input, this.streamId)),
         signal: controller.signal
       });
       const text = await response.text();

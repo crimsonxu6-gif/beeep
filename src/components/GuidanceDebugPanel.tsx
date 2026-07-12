@@ -62,7 +62,7 @@ export function GuidanceDebugPanel({
       <Text style={styles.line}>Engine: {debugState.guidanceEngine ?? "-"}</Text>
       <Text style={styles.line}>Error: {debugState.errorCode ?? "-"}</Text>
       <Text style={styles.line}>Vision: {visionLabel(visionFeatures)}</Text>
-      <Text style={styles.line}>Preflight: {guidance?.subjectPreflight ? `${String(guidance.subjectPreflight.detected)} ${Math.round(guidance.subjectPreflight.confidence * 100)}%` : "-"}</Text>
+      <Text style={styles.line}>Preflight: {guidance?.subjectPreflight ? `${guidance.subjectPreflight.state}/${String(guidance.subjectPreflight.allowShutterMuse)} ${Math.round(guidance.subjectPreflight.confidence * 100)}%` : "-"}</Text>
       <Text style={styles.line}>Action: {actionLabel(stableGuidance)}</Text>
       <Text style={styles.line}>Priority: {guidance?.priority ?? "-"}</Text>
       <Text style={styles.line}>Problem: {guidance?.problem?.description ?? "-"}</Text>

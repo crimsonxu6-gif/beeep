@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from core.config import settings
 from core.errors import ApiError
 from core.request_context import get_request_id
-from core.timing_metrics import TimingMetrics
+from core.timing_metrics import PreflightMetrics, TimingMetrics
 from schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -24,6 +24,7 @@ from services.guidance_adapter import GuidanceAdapter
 from services.service_factory import create_guidance_service
 from vision.mediapipe_processor import MediaPipeVisionProcessor
 from vision.subject_preflight import SubjectPreflight
+from vision.subject_presence_gate import SubjectPresenceGate
 
 router = APIRouter(prefix="/v1")
 guidance_service = create_guidance_service()
@@ -31,10 +32,12 @@ vision_processor = (
     MediaPipeVisionProcessor() if guidance_service.engine_name != "shuttermuse" else None
 )
 subject_preflight = SubjectPreflight() if guidance_service.engine_name == "shuttermuse" else None
+subject_presence_gate = SubjectPresenceGate()
 guidance_adapter = GuidanceAdapter()
 vision_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mediapipe")
 logger = logging.getLogger("beeep.analyze")
 timing_metrics = TimingMetrics()
+preflight_metrics = PreflightMetrics()
 T = TypeVar("T")
 
 
@@ -110,10 +113,17 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         if guidance_service.engine_name == "shuttermuse":
             if request.requires_person and settings.subject_preflight_enabled:
                 preflight_started = time.perf_counter()
-                preflight = _run_subject_preflight(request)
+                raw_preflight = _run_subject_preflight(request)
+                preflight = subject_presence_gate.evaluate(
+                    request.stream_id,
+                    request.frame_id,
+                    raw_preflight,
+                )
                 preflight_ms = int((time.perf_counter() - preflight_started) * 1000)
-                if not preflight.detected:
-                    output = guidance_adapter.subject_missing(request.frame_id)
+                blocked = not preflight.allow_shuttermuse
+                preflight_metrics.record(preflight.state, preflight.reason_code, blocked)
+                if blocked:
+                    output = guidance_adapter.from_subject_preflight(preflight, request.frame_id)
                     total_ms = int((time.perf_counter() - total_started) * 1000)
                     timing_metrics.record(preflight_ms=preflight_ms, guidance_ms=None)
                     return _response(
@@ -181,4 +191,5 @@ def status() -> dict[str, object]:
     return {
         **guidance_service.readiness(),
         "timing_percentiles": timing_metrics.snapshot(),
+        "preflight_outcomes": preflight_metrics.snapshot(),
     }

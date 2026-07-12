@@ -40,6 +40,7 @@ class AnalyzeRequest(VisionFeatureRequest):
     target_ratio: Literal["1:1", "3:4", "4:3", "9:16", "16:9"] = "3:4"
     language: Literal["zh-CN"] = "zh-CN"
     requires_person: bool = True
+    stream_id: str = Field(default="legacy", min_length=1, max_length=64)
 
 
 class ImageSize(StrictModel):
@@ -183,11 +184,21 @@ class GuidanceOutput(StrictModel):
 
 
 class SubjectPreflightResult(StrictModel):
+    state: Literal["detected", "uncertain", "missing"]
     detected: bool
+    allow_shuttermuse: bool
     confidence: float = Field(ge=0, le=1)
     bbox_norm: tuple[float, float, float, float] | None = None
     face_detected: bool
     reason: str | None = Field(default=None, max_length=48)
+    reason_code: Literal[
+        "face_confirmed",
+        "face_low_confidence",
+        "subject_too_small",
+        "no_face",
+        "recent_subject",
+        "confirming_subject",
+    ]
 
     @model_validator(mode="after")
     def validate_bbox(self):

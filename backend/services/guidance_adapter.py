@@ -14,6 +14,7 @@ from schemas import (
     HoldAction,
     MoveCameraAction,
     PoseRecommendation,
+    SubjectPreflightResult,
     TargetPoseKeypoint,
     VisionFeatures,
 )
@@ -69,19 +70,51 @@ class GuidanceAdapter:
         )
 
     def subject_missing(self, frame_id: int) -> GuidanceOutput:
-        action = FramingHintAction(
-            type="framing_hint",
-            message="把人物放进画面再试试",
-            confidence=0.7,
+        return self.from_subject_preflight(
+            SubjectPreflightResult(
+                state="missing",
+                detected=False,
+                allow_shuttermuse=False,
+                confidence=0,
+                face_detected=False,
+                reason="暂时没有找到人物",
+                reason_code="no_face",
+            ),
+            frame_id,
         )
+
+    def from_subject_preflight(
+        self,
+        preflight: SubjectPreflightResult,
+        frame_id: int,
+    ) -> GuidanceOutput:
+        messages = {
+            "no_face": "把人物放进画面再试试",
+            "face_low_confidence": "保持一下，让人物更清楚",
+            "subject_too_small": "让人物再靠近一些",
+            "recent_subject": "正在确认人物位置",
+            "confirming_subject": "正在确认人物位置",
+            "face_confirmed": "正在确认人物位置",
+        }
+        descriptions = {
+            "no_face": "暂时没有找到人物",
+            "face_low_confidence": "人物还不够清晰",
+            "subject_too_small": "人物在画面中太小",
+            "recent_subject": "人物检测暂时波动",
+            "confirming_subject": "正在确认人物位置",
+            "face_confirmed": "正在确认人物位置",
+        }
+        message = messages[preflight.reason_code]
+        description = descriptions[preflight.reason_code]
+        action = FramingHintAction(type="framing_hint", message=message, confidence=0.7)
         return GuidanceOutput(
             frameId=frame_id,
             priority="subject",
-            problem=GuidanceProblem(type="subject_missing", description="暂时没有找到人物"),
+            problem=GuidanceProblem(type=f"subject_{preflight.state}", description=description),
             actions=[action],
             message=action.message,
-            reason="MediaPipe 预检测没有发现稳定人物主体",
-            summary="暂时没有找到人物",
+            reason=f"MediaPipe preflight: {preflight.reason_code}",
+            summary=description,
             confidence=0.7,
         )
 
@@ -232,7 +265,7 @@ class GuidanceAdapter:
                     action=AdjustAngleAction(
                         type="adjust_angle",
                         direction="raise",
-                        message="手机稍微抬高些",
+                        message="取景稍微往上移",
                         confidence=_action_confidence(confidence, score),
                     ),
                     score=score,
@@ -248,7 +281,7 @@ class GuidanceAdapter:
                     action=AdjustAngleAction(
                         type="adjust_angle",
                         direction="lower",
-                        message="手机稍微放低些",
+                        message="取景稍微往下移",
                         confidence=_action_confidence(confidence, score),
                     ),
                     score=score,
@@ -265,7 +298,7 @@ class GuidanceAdapter:
                     action=AdjustDistanceAction(
                         type="adjust_distance",
                         direction="closer",
-                        message="再靠近人物一点",
+                        message="让人物再大一些",
                         confidence=_action_confidence(confidence, score),
                     ),
                     score=score,

@@ -29,10 +29,20 @@ describe("guidance parser", () => {
       confidence: 0.8,
       summary: "test",
       composition: { decision: "refine", bbox_norm: [0.1, 0.1, 0.8, 0.9] },
+      subject_preflight: {
+        state: "uncertain",
+        detected: false,
+        allow_shuttermuse: true,
+        confidence: 0.5,
+        face_detected: true,
+        reason_code: "face_low_confidence"
+      },
       timing: { preflight_ms: 12 }
     });
     expect(parsed.actions).toHaveLength(2);
     expect(parsed.composition?.bboxNorm).toEqual([0.1, 0.1, 0.8, 0.9]);
     expect(parsed.timing.preflightMs).toBe(12);
+    expect(parsed.subjectPreflight?.state).toBe("uncertain");
+    expect(parsed.subjectPreflight?.allowShutterMuse).toBe(true);
   });
 });

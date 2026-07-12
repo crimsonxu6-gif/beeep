@@ -34,11 +34,21 @@ SUBJECT_PREFLIGHT_ENABLED=1
 SUBJECT_PREFLIGHT_CONFIDENCE=0.55
 SUBJECT_PREFLIGHT_MIN_AREA=0.03
 SUBJECT_PREFLIGHT_TIMEOUT_MS=800
+SUBJECT_PREFLIGHT_CONFIRMATION_FRAMES=3
+SUBJECT_PREFLIGHT_HOLD_MS=1500
+SUBJECT_PREFLIGHT_STATE_TTL_MS=10000
 ```
 
 Requests default to `requires_person=true`. Future scenery, food or object modes can set
 it to false without changing the ShutterMuse service. `/v1/status` includes rolling P50
-and P95 preflight/guidance timings for the latest 200 samples.
+and P95 preflight/guidance timings for the latest 200 samples, plus detected/uncertain/
+missing and blocked outcome counts.
+
+Preflight is intentionally a lightweight face signal rather than full pose estimation.
+`SubjectPresenceGate` turns it into a three-state decision per `stream_id`: detected,
+uncertain or missing. It permits the first two uncertain/missing frames and retains a
+recent detected state for 1.5 seconds before blocking ShutterMuse. A labeled real-device
+false-block evaluation is available under `evaluation/preflight_eval`.
 
 All App-facing composition boxes and target pose points use normalized 0-1 coordinates. Pose model output is accepted only when all 17 COCO keypoints and all 17 visibility values are valid; malformed model output is rejected rather than padded.
 

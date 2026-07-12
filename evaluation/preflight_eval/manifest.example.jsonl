@@ -1,0 +1,3 @@
+{"scene":"front_half_body","person_actually_present":true,"preflight_state":"detected","reason_code":"face_confirmed","blocked_shuttermuse":false}
+{"scene":"side_profile","person_actually_present":true,"preflight_state":"uncertain","reason_code":"face_low_confidence","blocked_shuttermuse":false}
+{"scene":"empty_room","person_actually_present":false,"preflight_state":"missing","reason_code":"no_face","blocked_shuttermuse":true}

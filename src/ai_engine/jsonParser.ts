@@ -440,10 +440,17 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
   if (preflightValue && typeof preflightValue === "object") {
     const preflight = asRecord(preflightValue);
     const bbox = preflight.bbox_norm ?? preflight.bboxNorm;
+    const state = preflight.state;
+    if (state !== "detected" && state !== "uncertain" && state !== "missing") {
+      throw new GuidanceParseError("Invalid subject preflight state.");
+    }
     output.subjectPreflight = {
+      state,
       detected: Boolean(preflight.detected),
+      allowShutterMuse: Boolean(preflight.allow_shuttermuse ?? preflight.allowShutterMuse),
       confidence: clamp01(preflight.confidence, 0),
-      faceDetected: Boolean(preflight.face_detected ?? preflight.faceDetected)
+      faceDetected: Boolean(preflight.face_detected ?? preflight.faceDetected),
+      reasonCode: String(preflight.reason_code ?? preflight.reasonCode ?? "")
     };
     if (
       Array.isArray(bbox) &&

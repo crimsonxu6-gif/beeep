@@ -15,7 +15,7 @@ from vision.mediapipe_processor import (
 
 
 class SubjectPreflight:
-    """Lightweight person preflight for ShutterMuse; intentionally face-only."""
+    """Lightweight face signal used by the stateful person-presence gate."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -38,10 +38,13 @@ class SubjectPreflight:
         detections = result.detections or []
         if not detections:
             return SubjectPreflightResult(
+                state="missing",
                 detected=False,
+                allow_shuttermuse=False,
                 confidence=0,
                 face_detected=False,
                 reason="暂时没有找到人物",
+                reason_code="no_face",
             )
 
         detection = max(detections, key=lambda item: float(item.score[0]) if item.score else 0)
@@ -61,16 +64,23 @@ class SubjectPreflight:
             face.score >= settings.subject_preflight_confidence
             and area >= settings.subject_preflight_min_area
         )
+        state = "detected" if detected else "uncertain"
         reason = None
+        reason_code = "face_confirmed"
         if face.score < settings.subject_preflight_confidence:
             reason = "人物还不够清晰"
+            reason_code = "face_low_confidence"
         elif area < settings.subject_preflight_min_area:
             reason = "人物在画面中太小"
+            reason_code = "subject_too_small"
 
         return SubjectPreflightResult(
+            state=state,
             detected=detected,
+            allow_shuttermuse=detected,
             confidence=face.score,
             bbox_norm=bbox,
             face_detected=True,
             reason=reason,
+            reason_code=reason_code,
         )

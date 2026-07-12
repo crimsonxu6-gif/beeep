@@ -100,11 +100,14 @@ export interface GuidanceOutput {
     keypointCount: 17;
   };
   subjectPreflight?: {
+    state: "detected" | "uncertain" | "missing";
     detected: boolean;
+    allowShutterMuse: boolean;
     confidence: number;
     bboxNorm?: [number, number, number, number];
     faceDetected: boolean;
     reason?: string;
+    reasonCode: string;
   };
   timing: {
     preflightMs?: number;

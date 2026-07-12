@@ -12,6 +12,7 @@ from schemas import (
     ImageSize,
     PersonDetection,
     SceneFeatures,
+    SubjectPreflightResult,
     VisionFeatures,
 )
 from services.guidance_adapter import GuidanceAdapter
@@ -179,6 +180,43 @@ def test_message_accepts_16_chinese_characters_but_not_17() -> None:
         GuidanceOutput.model_validate(
             {**base, "actions": [{"type": "framing_hint", "message": seventeen}], "message": seventeen}
         )
+
+
+@pytest.mark.parametrize(
+    ("reason_code", "message"),
+    [
+        ("no_face", "把人物放进画面再试试"),
+        ("face_low_confidence", "保持一下，让人物更清楚"),
+        ("subject_too_small", "让人物再靠近一些"),
+        ("confirming_subject", "正在确认人物位置"),
+    ],
+)
+def test_preflight_reason_uses_specific_message(reason_code: str, message: str) -> None:
+    output = GuidanceAdapter().from_subject_preflight(
+        SubjectPreflightResult(
+            state="missing" if reason_code == "no_face" else "uncertain",
+            detected=False,
+            allow_shuttermuse=False,
+            confidence=0.3,
+            face_detected=reason_code != "no_face",
+            reason_code=reason_code,
+        ),
+        frame_id=1,
+    )
+    assert output.message == message
+
+
+def test_action_messages_are_semantically_neutral() -> None:
+    output = GuidanceAdapter().from_model_composition(
+        model_result(bbox=(0.0, 0.0, 1.0, 0.65)),
+        frame_id=1,
+    )
+    assert output.actions[0].message == "取景稍微往上移"
+    distance = GuidanceAdapter().from_model_composition(
+        model_result(bbox=(0.3, 0.3, 0.7, 0.7)),
+        frame_id=1,
+    )
+    assert distance.actions[0].message == "让人物再大一些"
 
 
 def test_app_composition_schema_rejects_out_of_range_bbox() -> None:

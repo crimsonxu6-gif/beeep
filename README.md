@@ -100,6 +100,11 @@ full pose/scene processor remains exclusive to rules mode. Beeep scores the mode
 normalized crop into one or two deterministic actions. Invalid boxes and model failures
 return explicit status messages and never produce a fabricated crop or silent rules fallback.
 
+The lightweight face signal is stateful rather than a one-frame hard gate. Per-camera
+`stream_id` state distinguishes detected, uncertain and missing, tolerates two transient
+frames and retains recent subject presence briefly. Use `evaluation/preflight_eval` to
+measure labeled false-block rate on real-device scenarios.
+
 Use `GUIDANCE_ENGINE=rules` to run without the GPU service. Use
 `GUIDANCE_ENGINE=shuttermuse` only after `http://127.0.0.1:8100/ready` reports ready.
 

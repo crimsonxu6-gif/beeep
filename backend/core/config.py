@@ -36,6 +36,13 @@ class Settings:
     subject_preflight_confidence: float = float(os.getenv("SUBJECT_PREFLIGHT_CONFIDENCE", "0.55"))
     subject_preflight_min_area: float = float(os.getenv("SUBJECT_PREFLIGHT_MIN_AREA", "0.03"))
     subject_preflight_timeout_ms: int = int(os.getenv("SUBJECT_PREFLIGHT_TIMEOUT_MS", "800"))
+    subject_preflight_confirmation_frames: int = int(
+        os.getenv("SUBJECT_PREFLIGHT_CONFIRMATION_FRAMES", "3")
+    )
+    subject_preflight_hold_ms: int = int(os.getenv("SUBJECT_PREFLIGHT_HOLD_MS", "1500"))
+    subject_preflight_state_ttl_ms: int = int(
+        os.getenv("SUBJECT_PREFLIGHT_STATE_TTL_MS", "10000")
+    )
 
 
 settings = Settings()

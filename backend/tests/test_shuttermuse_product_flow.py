@@ -10,9 +10,15 @@ from main import app
 from schemas import SubjectPreflightResult
 from services.guidance_adapter import GuidanceAdapter
 from services.shuttermuse_client import ModelCompositionResult
+from vision.subject_presence_gate import SubjectPresenceGate
 
 analyze_module = importlib.import_module("api.analyze")
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def isolated_presence_gate(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(analyze_module, "subject_presence_gate", SubjectPresenceGate())
 
 
 def request_payload() -> dict[str, object]:
@@ -24,6 +30,7 @@ def request_payload() -> dict[str, object]:
         "target_ratio": "3:4",
         "language": "zh-CN",
         "requires_person": True,
+        "stream_id": "test-stream",
         "image": {
             "base64": "unused-by-fakes",
             "width": 100,
@@ -72,10 +79,13 @@ class FakeShutterMuseService:
 
 def detected_subject() -> SubjectPreflightResult:
     return SubjectPreflightResult(
+        state="detected",
         detected=True,
+        allow_shuttermuse=True,
         confidence=0.9,
         bbox_norm=(0.2, 0.1, 0.8, 0.95),
         face_detected=True,
+        reason_code="face_confirmed",
     )
 
 
@@ -98,16 +108,21 @@ def test_missing_subject_skips_shuttermuse(monkeypatch: pytest.MonkeyPatch) -> N
         "subject_preflight",
         FakePreflight(
             SubjectPreflightResult(
+                state="missing",
                 detected=False,
+                allow_shuttermuse=False,
                 confidence=0,
                 face_detected=False,
                 reason="暂时没有找到人物",
+                reason_code="no_face",
             )
         ),
     )
-    response = client.post("/v1/analyze", json=request_payload())
+    client.post("/v1/analyze", json=request_payload())
+    client.post("/v1/analyze", json={**request_payload(), "frame_id": 13})
+    response = client.post("/v1/analyze", json={**request_payload(), "frame_id": 14})
     assert response.status_code == 200
-    assert service.calls == 0
+    assert service.calls == 2
     body = response.json()
     assert body["problem"]["type"] == "subject_missing"
     assert body["actions"][0]["message"] == "把人物放进画面再试试"
