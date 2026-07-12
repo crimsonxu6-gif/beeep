@@ -1,7 +1,7 @@
 import { VisionFeatures } from "@/types/vision";
 
 const actionConfidence = { type: "number", minimum: 0, maximum: 1 };
-const message = { type: "string", maxLength: 10 };
+const message = { type: "string", maxLength: 16 };
 
 export const guidanceJsonSchema = {
   type: "object",
@@ -140,7 +140,7 @@ export function buildGuidancePrompt(visionFeatures: VisionFeatures): string {
     "# Output Rules",
     "必须严格 JSON。禁止 Markdown。禁止解释文字。",
     "priority 必须是 subject、lighting、composition、pose、camera、distance、angle、hold 之一。",
-    "message 必须是中文，不超过 10 个字，普通人能马上理解。",
+    "message 必须是中文，不超过 16 个字，普通人能马上理解。",
     "reason 用于开发调试，不给用户展示，简短说明为什么这样判断。",
     "不要输出黄金比例、黄金时刻、视觉重心、色彩心理学等术语。",
     "",

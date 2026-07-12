@@ -1,7 +1,12 @@
 import { GuidanceAction, GuidanceOutput } from "@/types/guidance";
 
+export interface GuidanceInstructions {
+  primary: string;
+  secondary: string | null;
+}
+
 function clampInstruction(value: string): string {
-  return Array.from(value).slice(0, 10).join("");
+  return Array.from(value).slice(0, 16).join("");
 }
 
 function fallbackMessage(action: GuidanceAction): string {
@@ -50,11 +55,19 @@ function primaryAction(guidance: GuidanceOutput): GuidanceAction | undefined {
   return guidance.actions[0];
 }
 
-export function guidanceToInstruction(guidance: GuidanceOutput | null | undefined): string {
-  const action = guidance ? primaryAction(guidance) : undefined;
-  if (!action) {
-    return "寻找主体";
-  }
+export function guidanceToInstructions(
+  guidance: GuidanceOutput | null | undefined
+): GuidanceInstructions {
+  const primary = guidance ? primaryAction(guidance) : undefined;
+  const secondary = guidance?.actions[1];
+  return {
+    primary: primary ? clampInstruction(primary.message || fallbackMessage(primary)) : "",
+    secondary: secondary
+      ? clampInstruction(secondary.message || fallbackMessage(secondary))
+      : null
+  };
+}
 
-  return clampInstruction(action.message || fallbackMessage(action));
+export function guidanceToInstruction(guidance: GuidanceOutput | null | undefined): string {
+  return guidanceToInstructions(guidance).primary;
 }

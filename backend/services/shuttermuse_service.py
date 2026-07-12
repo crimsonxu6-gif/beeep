@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from core.config import settings
+from core.errors import ApiError
 from core.request_context import get_request_id
 from schemas import AnalyzeRequest, GuidanceOutput, VisionFeatures
 from services.guidance_adapter import GuidanceAdapter
@@ -18,8 +19,15 @@ class ShutterMuseGuidanceService:
         self.client = ShutterMuseModelClient()
         self.guidance_adapter = GuidanceAdapter()
 
-    def analyze(self, request: AnalyzeRequest, vision_features: VisionFeatures) -> GuidanceOutput:
+    def analyze(self, request: AnalyzeRequest, vision_features: VisionFeatures | None) -> GuidanceOutput:
         model_result = self.client.infer(request)
+        if model_result.status != "success":
+            raise ApiError(
+                502,
+                model_result.error_code or "INVALID_MODEL_OUTPUT",
+                "ShutterMuse returned a low-confidence result",
+                request.frame_id,
+            )
         output = self.guidance_adapter.from_model_composition(
             model_result,
             frame_id=request.frame_id,

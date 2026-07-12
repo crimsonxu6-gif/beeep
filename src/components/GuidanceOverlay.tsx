@@ -1,11 +1,11 @@
 import { StyleSheet, View } from "react-native";
 import Svg, { Line } from "react-native-svg";
 
-import { StableGuidance } from "@/types/guidance";
+import { ModelStatus, StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
 import { appConfig } from "@/config";
 import { GuidanceDebugPanel } from "./GuidanceDebugPanel";
-import { guidanceToInstruction } from "@/ui/instructionFormatter";
+import { guidanceToInstructions } from "@/ui/instructionFormatter";
 import { InstructionText } from "@/ui/InstructionText";
 import { OverlayArrows } from "@/ui/OverlayArrows";
 import { stableGuidanceVariant } from "@/ui/guidanceVisuals";
@@ -13,6 +13,7 @@ import { GuidanceDebugState } from "@/ai_engine/guidancePipeline";
 import { CompositionMode } from "@/types/guidance";
 import { CompositionBoxOverlay } from "./CompositionBoxOverlay";
 import { PoseSkeletonOverlay } from "./PoseSkeletonOverlay";
+import { ModelStatusMessage } from "@/ui/ModelStatusMessage";
 
 export interface OverlaySize {
   width: number;
@@ -25,7 +26,7 @@ interface GuidanceOverlayProps {
   overlaySize: OverlaySize;
   processing: boolean;
   latencyMs: number | null;
-  error: string | null;
+  modelStatus: ModelStatus | null;
   debugState: GuidanceDebugState;
   compositionMode: CompositionMode;
 }
@@ -74,12 +75,12 @@ export function GuidanceOverlay({
   overlaySize,
   processing,
   latencyMs,
-  error,
+  modelStatus,
   debugState,
   compositionMode
 }: GuidanceOverlayProps) {
   const guidance = stableGuidance?.guidance;
-  const instruction = guidanceToInstruction(guidance);
+  const instructions = guidanceToInstructions(guidance);
   const visualVariant = stableGuidanceVariant(stableGuidance?.key);
 
   return (
@@ -88,13 +89,17 @@ export function GuidanceOverlay({
       <CompositionBoxOverlay guidance={guidance} size={overlaySize} />
       <PoseSkeletonOverlay guidance={guidance} size={overlaySize} />
       <OverlayArrows guidance={guidance} variant={visualVariant} />
-      <InstructionText
-        text={instruction}
-        processing={processing}
-        latencyMs={latencyMs}
-        error={error}
-        variant={visualVariant}
-      />
+      {instructions.primary ? (
+        <InstructionText
+          primary={instructions.primary}
+          secondary={instructions.secondary}
+          latencyMs={latencyMs}
+          variant={visualVariant}
+        />
+      ) : null}
+      {modelStatus ? (
+        <ModelStatusMessage status={modelStatus} hasGuidance={Boolean(instructions.primary)} />
+      ) : null}
       {appConfig.debugPanel ? (
         <GuidanceDebugPanel
           stableGuidance={stableGuidance}

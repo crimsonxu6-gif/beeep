@@ -39,6 +39,7 @@ class AnalyzeRequest(VisionFeatureRequest):
     composition_mode: CompositionMode = "auto"
     target_ratio: Literal["1:1", "3:4", "4:3", "9:16", "16:9"] = "3:4"
     language: Literal["zh-CN"] = "zh-CN"
+    requires_person: bool = True
 
 
 class ImageSize(StrictModel):
@@ -89,7 +90,7 @@ class GuidanceProblem(StrictModel):
 
 
 class GuidanceActionBase(StrictModel):
-    message: str = Field(max_length=10)
+    message: str = Field(max_length=16)
     confidence: float | None = Field(default=None, ge=0, le=1)
     strength: ActionStrength | None = None
 
@@ -162,6 +163,7 @@ class PoseRecommendation(StrictModel):
 
 
 class GuidanceTiming(StrictModel):
+    preflight_ms: int | None = Field(default=None, ge=0)
     vision_ms: int = Field(ge=0)
     guidance_ms: int = Field(ge=0)
     total_ms: int = Field(ge=0)
@@ -172,12 +174,29 @@ class GuidanceOutput(StrictModel):
     priority: GuidancePriority
     problem: GuidanceProblem
     actions: list[GuidanceAction] = Field(max_length=2)
-    message: str = Field(max_length=10)
+    message: str = Field(max_length=16)
     reason: str = Field(max_length=80)
     summary: str = Field(max_length=32)
     confidence: float = Field(ge=0, le=1)
     composition: CompositionRecommendation | None = None
     pose: PoseRecommendation | None = None
+
+
+class SubjectPreflightResult(StrictModel):
+    detected: bool
+    confidence: float = Field(ge=0, le=1)
+    bbox_norm: tuple[float, float, float, float] | None = None
+    face_detected: bool
+    reason: str | None = Field(default=None, max_length=48)
+
+    @model_validator(mode="after")
+    def validate_bbox(self):
+        if self.bbox_norm is None:
+            return self
+        x1, y1, x2, y2 = self.bbox_norm
+        if not (0 <= x1 < x2 <= 1 and 0 <= y1 < y2 <= 1):
+            raise ValueError("bbox_norm must be normalized xyxy coordinates")
+        return self
 
 
 class AnalyzeResponse(StrictModel):
@@ -188,11 +207,12 @@ class AnalyzeResponse(StrictModel):
     priority: GuidancePriority
     problem: GuidanceProblem
     actions: list[GuidanceAction] = Field(max_length=2)
-    message: str = Field(max_length=10)
+    message: str = Field(max_length=16)
     reason: str = Field(max_length=80)
     summary: str = Field(max_length=32)
     confidence: float = Field(ge=0, le=1)
     composition: CompositionRecommendation | None = None
     pose: PoseRecommendation | None = None
-    vision_features: VisionFeatures
+    vision_features: VisionFeatures | None = None
+    subject_preflight: SubjectPreflightResult | None = None
     timing: GuidanceTiming

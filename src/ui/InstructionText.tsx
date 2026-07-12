@@ -4,10 +4,9 @@ import Svg, { Path } from "react-native-svg";
 import { GuidanceVisualVariant } from "./guidanceVisuals";
 
 interface InstructionTextProps {
-  text: string;
-  processing: boolean;
+  primary: string;
+  secondary: string | null;
   latencyMs: number | null;
-  error: string | null;
   variant: GuidanceVisualVariant;
 }
 
@@ -94,16 +93,21 @@ function InstructionFrame({ variant }: { variant: GuidanceVisualVariant }) {
   );
 }
 
-export function InstructionText({ text, latencyMs, error, variant }: InstructionTextProps) {
-  const statusText = error ? "连接异常" : latencyMs ? `${latencyMs}ms` : "";
+export function InstructionText({ primary, secondary, latencyMs, variant }: InstructionTextProps) {
+  const statusText = latencyMs ? `${latencyMs}ms` : "";
 
   return (
     <View pointerEvents="none" style={styles.wrap}>
       <InstructionFrame variant={variant} />
       <View style={styles.content}>
         <Text numberOfLines={1} adjustsFontSizeToFit style={styles.instruction}>
-          {error ? "保持当前" : text}
+          {primary}
         </Text>
+        {secondary ? (
+          <Text numberOfLines={1} adjustsFontSizeToFit style={styles.secondary}>
+            {secondary}
+          </Text>
+        ) : null}
         {statusText ? <Text style={styles.status}>{statusText}</Text> : null}
       </View>
     </View>
@@ -116,7 +120,7 @@ const styles = StyleSheet.create({
     left: 34,
     right: 34,
     bottom: 190,
-    minHeight: 84,
+    minHeight: 96,
     transform: [{ rotate: "-0.5deg" }]
   },
   outline: {
@@ -127,7 +131,7 @@ const styles = StyleSheet.create({
     bottom: 0
   },
   content: {
-    minHeight: 78,
+    minHeight: 92,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 28,
@@ -140,6 +144,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 30,
     fontWeight: "800"
+  },
+  secondary: {
+    width: "100%",
+    marginTop: 2,
+    color: "rgba(255,255,255,0.72)",
+    textAlign: "center",
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "700"
   },
   status: {
     marginTop: 1,

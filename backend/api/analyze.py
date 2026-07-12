@@ -4,42 +4,139 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
+from typing import Callable, TypeVar
 
 from fastapi import APIRouter
 
 from core.config import settings
 from core.errors import ApiError
 from core.request_context import get_request_id
-from schemas import AnalyzeRequest, AnalyzeResponse, GuidanceTiming
+from core.timing_metrics import TimingMetrics
+from schemas import (
+    AnalyzeRequest,
+    AnalyzeResponse,
+    GuidanceOutput,
+    GuidanceTiming,
+    SubjectPreflightResult,
+    VisionFeatures,
+)
+from services.guidance_adapter import GuidanceAdapter
 from services.service_factory import create_guidance_service
 from vision.mediapipe_processor import MediaPipeVisionProcessor
+from vision.subject_preflight import SubjectPreflight
 
 router = APIRouter(prefix="/v1")
-vision_processor = MediaPipeVisionProcessor()
 guidance_service = create_guidance_service()
+vision_processor = (
+    MediaPipeVisionProcessor() if guidance_service.engine_name != "shuttermuse" else None
+)
+subject_preflight = SubjectPreflight() if guidance_service.engine_name == "shuttermuse" else None
+guidance_adapter = GuidanceAdapter()
 vision_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mediapipe")
 logger = logging.getLogger("beeep.analyze")
+timing_metrics = TimingMetrics()
+T = TypeVar("T")
 
 
-def _run_vision_with_timeout(callable_, timeout_ms: int):
+def _run_with_timeout(callable_: Callable[[], T], timeout_ms: int, code: str, message: str) -> T:
     future = vision_executor.submit(callable_)
     try:
         return future.result(timeout=timeout_ms / 1000)
     except FutureTimeoutError as exc:
         future.cancel()
-        raise ApiError(504, "VISION_TIMEOUT", "视觉分析超时") from exc
+        raise ApiError(504, code, message) from exc
+
+
+def _run_subject_preflight(request: AnalyzeRequest) -> SubjectPreflightResult:
+    try:
+        if subject_preflight is None:
+            raise RuntimeError("subject preflight is not initialized")
+        return _run_with_timeout(
+            lambda: subject_preflight.analyze(request),
+            settings.subject_preflight_timeout_ms,
+            "PREFLIGHT_FAILED",
+            "Subject preflight timed out",
+        )
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise ApiError(503, "PREFLIGHT_FAILED", "Subject preflight failed") from exc
+
+
+def _response(
+    request: AnalyzeRequest,
+    output: GuidanceOutput,
+    *,
+    features: VisionFeatures | None,
+    preflight: SubjectPreflightResult | None,
+    preflight_ms: int | None,
+    vision_ms: int,
+    guidance_ms: int,
+    total_ms: int,
+) -> AnalyzeResponse:
+    return AnalyzeResponse(
+        request_id=get_request_id(),
+        frame_id=request.frame_id,
+        guidance_engine=guidance_service.engine_name,
+        priority=output.priority,
+        problem=output.problem,
+        actions=output.actions,
+        message=output.actions[0].message if output.actions else output.message,
+        reason=output.reason,
+        summary=output.summary,
+        confidence=output.confidence,
+        composition=output.composition,
+        pose=output.pose,
+        vision_features=features,
+        subject_preflight=preflight,
+        timing=GuidanceTiming(
+            preflight_ms=preflight_ms,
+            vision_ms=vision_ms,
+            guidance_ms=guidance_ms,
+            total_ms=total_ms,
+        ),
+    )
 
 
 @router.post("/analyze", response_model=AnalyzeResponse, response_model_exclude_none=True)
 def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     total_started = time.perf_counter()
+    features: VisionFeatures | None = None
+    preflight: SubjectPreflightResult | None = None
+    preflight_ms: int | None = None
+    vision_ms = 0
+
     try:
-        vision_started = time.perf_counter()
-        features = _run_vision_with_timeout(
-            lambda: vision_processor.extract_features(request),
-            settings.vision_timeout_ms,
-        )
-        vision_ms = int((time.perf_counter() - vision_started) * 1000)
+        if guidance_service.engine_name == "shuttermuse":
+            if request.requires_person and settings.subject_preflight_enabled:
+                preflight_started = time.perf_counter()
+                preflight = _run_subject_preflight(request)
+                preflight_ms = int((time.perf_counter() - preflight_started) * 1000)
+                if not preflight.detected:
+                    output = guidance_adapter.subject_missing(request.frame_id)
+                    total_ms = int((time.perf_counter() - total_started) * 1000)
+                    timing_metrics.record(preflight_ms=preflight_ms, guidance_ms=None)
+                    return _response(
+                        request,
+                        output,
+                        features=None,
+                        preflight=preflight,
+                        preflight_ms=preflight_ms,
+                        vision_ms=0,
+                        guidance_ms=0,
+                        total_ms=total_ms,
+                    )
+        else:
+            if vision_processor is None:
+                raise ApiError(503, "VISION_UNAVAILABLE", "Vision processor is unavailable")
+            vision_started = time.perf_counter()
+            features = _run_with_timeout(
+                lambda: vision_processor.extract_features(request),
+                settings.vision_timeout_ms,
+                "VISION_TIMEOUT",
+                "Vision analysis timed out",
+            )
+            vision_ms = int((time.perf_counter() - vision_started) * 1000)
 
         guidance_started = time.perf_counter()
         output = guidance_service.analyze(request, features)
@@ -49,45 +146,39 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         raise
 
     total_ms = int((time.perf_counter() - total_started) * 1000)
+    timing_metrics.record(preflight_ms=preflight_ms, guidance_ms=guidance_ms)
     if settings.shuttermuse_debug_output and guidance_service.engine_name == "shuttermuse":
-        action = output.actions[0] if output.actions else None
+        action_messages = [action.message for action in output.actions]
         logger.info(
             "analyze_complete request_id=%s frame_id=%s target_ratio=%s composition_mode=%s "
-            "bbox_norm=%s decision=%s action=%s message=%s vision_ms=%s guidance_ms=%s total_ms=%s",
+            "preflight=%s bbox_norm=%s decision=%s actions=%s preflight_ms=%s guidance_ms=%s total_ms=%s",
             get_request_id(),
             request.frame_id,
             request.target_ratio,
             request.composition_mode,
+            preflight.detected if preflight else None,
             output.composition.bbox_norm if output.composition else None,
             output.composition.decision if output.composition else None,
-            action.type if action else None,
-            action.message if action else None,
-            vision_ms,
+            action_messages,
+            preflight_ms,
             guidance_ms,
             total_ms,
         )
-    return AnalyzeResponse(
-        request_id=get_request_id(),
-        frame_id=request.frame_id,
-        guidance_engine=guidance_service.engine_name,
-        priority=output.priority,
-        problem=output.problem,
-        actions=output.actions,
-        message=output.message,
-        reason=output.reason,
-        summary=output.summary,
-        confidence=output.confidence,
-        composition=output.composition,
-        pose=output.pose,
-        vision_features=features,
-        timing=GuidanceTiming(
-            vision_ms=vision_ms,
-            guidance_ms=guidance_ms,
-            total_ms=total_ms,
-        ),
+    return _response(
+        request,
+        output,
+        features=features,
+        preflight=preflight,
+        preflight_ms=preflight_ms,
+        vision_ms=vision_ms,
+        guidance_ms=guidance_ms,
+        total_ms=total_ms,
     )
 
 
 @router.get("/status")
 def status() -> dict[str, object]:
-    return guidance_service.readiness()
+    return {
+        **guidance_service.readiness(),
+        "timing_percentiles": timing_metrics.snapshot(),
+    }

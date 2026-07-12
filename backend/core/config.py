@@ -4,6 +4,13 @@ import os
 from dataclasses import dataclass
 
 
+def _bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _csv(name: str, default: str) -> list[str]:
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
@@ -25,6 +32,10 @@ class Settings:
     shuttermuse_service_api_key: str = os.getenv("SHUTTERMUSE_SERVICE_API_KEY", "")
     shuttermuse_debug_output: bool = os.getenv("SHUTTERMUSE_DEBUG_OUTPUT", "0") == "1"
     shuttermuse_prompt_mode: str = os.getenv("SHUTTERMUSE_PROMPT_MODE", "official").lower()
+    subject_preflight_enabled: bool = _bool("SUBJECT_PREFLIGHT_ENABLED", True)
+    subject_preflight_confidence: float = float(os.getenv("SUBJECT_PREFLIGHT_CONFIDENCE", "0.55"))
+    subject_preflight_min_area: float = float(os.getenv("SUBJECT_PREFLIGHT_MIN_AREA", "0.03"))
+    subject_preflight_timeout_ms: int = int(os.getenv("SUBJECT_PREFLIGHT_TIMEOUT_MS", "800"))
 
 
 settings = Settings()

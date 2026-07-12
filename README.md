@@ -94,9 +94,11 @@ SHUTTERMUSE_SERVICE_URL=http://127.0.0.1:8100
 ```
 
 The GPU process loads one model and one processor, performs parse-checked warmup before
-readiness, and permits one active plus one replaceable pending generation. Beeep converts
-the model's normalized crop into one product action. Invalid boxes return a low-confidence
-result and never produce a fabricated crop.
+readiness, and permits one active plus one replaceable pending generation. In ShutterMuse
+mode a lightweight MediaPipe face preflight first checks that a person is present; the
+full pose/scene processor remains exclusive to rules mode. Beeep scores the model's
+normalized crop into one or two deterministic actions. Invalid boxes and model failures
+return explicit status messages and never produce a fabricated crop or silent rules fallback.
 
 Use `GUIDANCE_ENGINE=rules` to run without the GPU service. Use
 `GUIDANCE_ENGINE=shuttermuse` only after `http://127.0.0.1:8100/ready` reports ready.

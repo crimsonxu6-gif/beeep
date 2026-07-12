@@ -99,7 +99,7 @@ function normalizePriority(value: unknown): GuidancePriority | undefined {
 }
 
 function normalizeMessage(value: unknown): string {
-  return typeof value === "string" ? Array.from(value.trim()).slice(0, 10).join("") : "";
+  return typeof value === "string" ? Array.from(value.trim()).slice(0, 16).join("") : "";
 }
 
 function normalizeInstruction(value: unknown): string {
@@ -357,6 +357,15 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
   }
   const requestId = typeof root.request_id === "string" ? root.request_id : root.requestId;
   const timingRaw = asRecord(root.timing ?? {});
+  const timing: GuidanceOutput["timing"] = {
+    visionMs: Number(timingRaw.vision_ms ?? timingRaw.visionMs) || 0,
+    guidanceMs: Number(timingRaw.guidance_ms ?? timingRaw.guidanceMs) || 0,
+    totalMs: Number(timingRaw.total_ms ?? timingRaw.totalMs) || 0
+  };
+  const preflightMs = Number(timingRaw.preflight_ms ?? timingRaw.preflightMs);
+  if (Number.isFinite(preflightMs) && preflightMs >= 0) {
+    timing.preflightMs = preflightMs;
+  }
   const output: GuidanceOutput = {
     requestId: typeof requestId === "string" && requestId ? requestId : `frame_${frameId}`,
     frameId,
@@ -364,11 +373,7 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
     actions: actions.slice(0, 2),
     summary: typeof root.summary === "string" ? root.summary.slice(0, 80) : "",
     confidence: Math.min(1, Math.max(0, confidence)),
-    timing: {
-      visionMs: Number(timingRaw.vision_ms ?? timingRaw.visionMs) || 0,
-      guidanceMs: Number(timingRaw.guidance_ms ?? timingRaw.guidanceMs) || 0,
-      totalMs: Number(timingRaw.total_ms ?? timingRaw.totalMs) || 0
-    }
+    timing
   };
 
   const guidanceEngine = root.guidance_engine ?? root.guidanceEngine;
@@ -429,6 +434,27 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
         return { name: String(keypoint.name), x, y, visibility };
       })
     };
+  }
+
+  const preflightValue = root.subject_preflight ?? root.subjectPreflight;
+  if (preflightValue && typeof preflightValue === "object") {
+    const preflight = asRecord(preflightValue);
+    const bbox = preflight.bbox_norm ?? preflight.bboxNorm;
+    output.subjectPreflight = {
+      detected: Boolean(preflight.detected),
+      confidence: clamp01(preflight.confidence, 0),
+      faceDetected: Boolean(preflight.face_detected ?? preflight.faceDetected)
+    };
+    if (
+      Array.isArray(bbox) &&
+      bbox.length === 4 &&
+      bbox.every((item) => typeof item === "number" && item >= 0 && item <= 1)
+    ) {
+      output.subjectPreflight.bboxNorm = bbox as [number, number, number, number];
+    }
+    if (typeof preflight.reason === "string" && preflight.reason) {
+      output.subjectPreflight.reason = preflight.reason.slice(0, 48);
+    }
   }
 
   return output;

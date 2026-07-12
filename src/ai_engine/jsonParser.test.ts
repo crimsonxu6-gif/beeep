@@ -17,4 +17,22 @@ describe("guidance parser", () => {
   it("requires frame_id", () => {
     expect(() => validateGuidanceOutput({ actions: [], confidence: 0.8 })).toThrow(/frame_id/);
   });
+
+  it("keeps two instructions and a composition box", () => {
+    const parsed = validateGuidanceOutput({
+      frame_id: 1,
+      request_id: "req_test",
+      actions: [
+        { type: "move_camera", direction: "left", message: "镜头稍微往左移" },
+        { type: "adjust_distance", direction: "closer", message: "再靠近人物一点" }
+      ],
+      confidence: 0.8,
+      summary: "test",
+      composition: { decision: "refine", bbox_norm: [0.1, 0.1, 0.8, 0.9] },
+      timing: { preflight_ms: 12 }
+    });
+    expect(parsed.actions).toHaveLength(2);
+    expect(parsed.composition?.bboxNorm).toEqual([0.1, 0.1, 0.8, 0.9]);
+    expect(parsed.timing.preflightMs).toBe(12);
+  });
 });

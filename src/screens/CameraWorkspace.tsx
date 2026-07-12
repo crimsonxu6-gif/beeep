@@ -11,7 +11,7 @@ import { CameraView, PermissionResponse } from "expo-camera";
 import { Aperture, Camera, ChevronLeft, Images } from "lucide-react-native";
 
 import { GuidanceOverlay, OverlaySize } from "@/components/GuidanceOverlay";
-import { StableGuidance } from "@/types/guidance";
+import { ModelStatus, StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
 import { colors, radii, typography } from "@/theme/design";
 import { CompositionMode } from "@/types/guidance";
@@ -27,7 +27,7 @@ interface CameraWorkspaceProps {
   visionFeatures: VisionFeatures | null;
   latencyMs: number | null;
   processing: boolean;
-  error: string | null;
+  modelStatus: ModelStatus | null;
   onBack: () => void;
   onCapture: () => void;
   onOpenGallery: () => void;
@@ -47,7 +47,7 @@ export function CameraWorkspace({
   visionFeatures,
   latencyMs,
   processing,
-  error,
+  modelStatus,
   onBack,
   onCapture,
   onOpenGallery,
@@ -76,7 +76,7 @@ export function CameraWorkspace({
             overlaySize={overlaySize}
             processing={processing}
             latencyMs={latencyMs}
-            error={error}
+            modelStatus={modelStatus}
             debugState={debugState}
             compositionMode={compositionMode}
           />
@@ -98,7 +98,11 @@ export function CameraWorkspace({
         </Pressable>
         <View style={styles.topTitleWrap}>
           <Text style={styles.topTitle}>实时构图</Text>
-          <Text style={styles.topMeta}>{processing ? "分析中" : "Ready"}</Text>
+          <Text style={styles.topMeta}>
+            {modelStatus
+              ? modelStatus.severity === "waiting" ? "AI 准备中" : "AI 暂不可用"
+              : processing ? "分析中" : "Ready"}
+          </Text>
         </View>
         <View style={styles.topSpacer} />
       </View>

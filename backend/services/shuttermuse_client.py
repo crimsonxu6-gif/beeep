@@ -68,29 +68,44 @@ class ShutterMuseModelClient:
                 json=payload,
             )
         except httpx.TimeoutException as exc:
-            raise ApiError(504, "GUIDANCE_TIMEOUT", "AI 构图超时", request.frame_id) from exc
+            raise ApiError(504, "MODEL_TIMEOUT", "ShutterMuse inference timed out", request.frame_id) from exc
         except httpx.HTTPError as exc:
-            raise ApiError(503, "MODEL_SERVICE_UNAVAILABLE", "AI 暂时不可用", request.frame_id) from exc
+            raise ApiError(
+                503,
+                "MODEL_SERVICE_UNAVAILABLE",
+                "ShutterMuse model service is unavailable",
+                request.frame_id,
+            ) from exc
 
-        if response.status_code in {429, 503}:
-            code = "MODEL_BUSY" if response.status_code == 429 else "MODEL_NOT_READY"
+        if response.status_code >= 400:
+            defaults = {
+                429: "MODEL_BUSY",
+                503: "MODEL_LOADING",
+                504: "MODEL_TIMEOUT",
+            }
+            code = defaults.get(response.status_code, "MODEL_SERVICE_FAILED")
             try:
                 detail = response.json().get("detail", {})
                 code = detail.get("code", code)
             except ValueError:
                 pass
+            if code == "MODEL_NOT_READY":
+                code = "MODEL_LOADING"
             raise ApiError(
                 response.status_code,
                 code,
-                "AI 正在处理" if code == "MODEL_BUSY" else "AI 暂时不可用",
+                "ShutterMuse model service rejected the request",
                 request.frame_id,
             )
-        if response.status_code >= 400:
-            raise ApiError(503, "MODEL_SERVICE_FAILED", "AI 暂时不可用", request.frame_id)
         try:
             return ModelCompositionResult.model_validate(response.json())
         except (ValueError, ValidationError) as exc:
-            raise ApiError(503, "INVALID_MODEL_OUTPUT", "模型输出无效", request.frame_id) from exc
+            raise ApiError(
+                502,
+                "INVALID_MODEL_OUTPUT",
+                "Invalid ShutterMuse output",
+                request.frame_id,
+            ) from exc
 
     def readiness(self) -> dict[str, object]:
         try:

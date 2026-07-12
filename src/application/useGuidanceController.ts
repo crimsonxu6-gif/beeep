@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { appConfig } from "@/config";
 import { GuidanceDebugState, GuidancePipeline } from "@/ai_engine/guidancePipeline";
-import { ShutterMuseHttpClient } from "@/ai_engine/inferenceClient";
+import { GuidanceApiError, ShutterMuseHttpClient } from "@/ai_engine/inferenceClient";
 import { StabilityFilter } from "@/stability/stabilityFilter";
 import { CapturedFrame } from "@/types/frame";
-import { CompositionMode, StableGuidance } from "@/types/guidance";
+import { CompositionMode, ModelStatus, StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
 
 interface GuidanceControllerState {
@@ -13,7 +13,7 @@ interface GuidanceControllerState {
   visionFeatures: VisionFeatures | null;
   debugState: GuidanceDebugState;
   processing: boolean;
-  error: string | null;
+  modelStatus: ModelStatus | null;
 }
 
 export function useGuidanceController(compositionMode: CompositionMode): GuidanceControllerState & {
@@ -31,10 +31,11 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
     visionLatencyMs: null,
     guidanceLatencyMs: null,
     totalLatencyMs: null,
-    guidanceEngine: null
+    guidanceEngine: null,
+    errorCode: null
   });
   const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
 
   const pipeline = useMemo(() => new GuidancePipeline({
     client: new ShutterMuseHttpClient({
@@ -53,25 +54,37 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
       onStableGuidance: setStableGuidance,
       onDebugState: setDebugState,
       onProcessingChange: setProcessing,
-      onError: (pipelineError) => setError(pipelineError.message)
+      onSuccess: () => setModelStatus(null),
+      onError: (pipelineError) => {
+        if (pipelineError instanceof GuidanceApiError) {
+          setModelStatus(pipelineError.status);
+          return;
+        }
+        setModelStatus({
+          code: "UNKNOWN_ERROR",
+          message: "AI 暂时无法使用",
+          suggestion: "可以稍后再来试试",
+          retryable: true,
+          severity: "error"
+        });
+      }
     });
     return () => pipeline.dispose();
   }, [pipeline]);
 
   useEffect(() => {
     pipeline.reset();
-    setError(null);
+    setModelStatus(null);
   }, [compositionMode, pipeline]);
 
   const handleFrame = useCallback((frame: CapturedFrame) => {
-    setError(null);
     pipeline.acceptFrame(frame, compositionMode);
   }, [compositionMode, pipeline]);
 
   const reset = useCallback(() => {
     pipeline.reset();
-    setError(null);
+    setModelStatus(null);
   }, [pipeline]);
 
-  return { stableGuidance, visionFeatures, debugState, processing, error, handleFrame, reset };
+  return { stableGuidance, visionFeatures, debugState, processing, modelStatus, handleFrame, reset };
 }

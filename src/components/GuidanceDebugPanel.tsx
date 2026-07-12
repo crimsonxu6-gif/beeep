@@ -57,10 +57,12 @@ export function GuidanceDebugPanel({
       <Text style={styles.line}>Request: {debugState.requestId ?? "-"}</Text>
       <Text style={styles.line}>Frame: {debugState.latestAcceptedFrameId}/{debugState.latestProcessedFrameId}/{debugState.latestRenderedFrameId}</Text>
       <Text style={styles.line}>Stale dropped: {debugState.droppedStaleResultCount}</Text>
-      <Text style={styles.line}>Timing: {debugState.visionLatencyMs ?? "-"}/{debugState.guidanceLatencyMs ?? "-"}/{debugState.totalLatencyMs ?? "-"}ms</Text>
+      <Text style={styles.line}>Timing P/V/G/T: {guidance?.timing.preflightMs ?? "-"}/{debugState.visionLatencyMs ?? "-"}/{debugState.guidanceLatencyMs ?? "-"}/{debugState.totalLatencyMs ?? "-"}ms</Text>
       <Text style={styles.line}>Mock: {String(appConfig.mockEnabled)} | Mode: {compositionMode}</Text>
       <Text style={styles.line}>Engine: {debugState.guidanceEngine ?? "-"}</Text>
+      <Text style={styles.line}>Error: {debugState.errorCode ?? "-"}</Text>
       <Text style={styles.line}>Vision: {visionLabel(visionFeatures)}</Text>
+      <Text style={styles.line}>Preflight: {guidance?.subjectPreflight ? `${String(guidance.subjectPreflight.detected)} ${Math.round(guidance.subjectPreflight.confidence * 100)}%` : "-"}</Text>
       <Text style={styles.line}>Action: {actionLabel(stableGuidance)}</Text>
       <Text style={styles.line}>Priority: {guidance?.priority ?? "-"}</Text>
       <Text style={styles.line}>Problem: {guidance?.problem?.description ?? "-"}</Text>

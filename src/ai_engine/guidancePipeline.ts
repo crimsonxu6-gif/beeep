@@ -4,6 +4,7 @@ import { VisionFeatures } from "@/types/vision";
 import { StaleResultGuard } from "@/stability/staleResultGuard";
 import { StabilityFilter } from "@/stability/stabilityFilter";
 import { GuidanceEngineInput, GuidanceInferenceClient } from "./inferenceClient";
+import { GuidanceApiError } from "./inferenceClient";
 
 export interface GuidanceDebugState {
   requestId: string | null;
@@ -15,6 +16,7 @@ export interface GuidanceDebugState {
   guidanceLatencyMs: number | null;
   totalLatencyMs: number | null;
   guidanceEngine: string | null;
+  errorCode: string | null;
 }
 
 interface GuidancePipelineOptions {
@@ -30,6 +32,7 @@ export interface GuidancePipelineCallbacks {
   onDebugState?: (state: GuidanceDebugState) => void;
   onProcessingChange?: (processing: boolean) => void;
   onError?: (error: Error) => void;
+  onSuccess?: () => void;
 }
 
 const EMPTY_DEBUG: GuidanceDebugState = {
@@ -41,7 +44,8 @@ const EMPTY_DEBUG: GuidanceDebugState = {
   visionLatencyMs: null,
   guidanceLatencyMs: null,
   totalLatencyMs: null,
-  guidanceEngine: null
+  guidanceEngine: null,
+  errorCode: null
 };
 
 export class GuidancePipeline {
@@ -105,10 +109,12 @@ export class GuidancePipeline {
         visionLatencyMs: guidance.timing.visionMs,
         guidanceLatencyMs: guidance.timing.guidanceMs,
         totalLatencyMs: guidance.timing.totalMs,
-        guidanceEngine: guidance.guidanceEngine ?? null
+        guidanceEngine: guidance.guidanceEngine ?? null,
+        errorCode: null
       };
       this.syncGuardDebug();
       if (!reliable) return;
+      this.callbacks.onSuccess?.();
       this.callbacks.onVisionFeatures?.(visionFeatures);
       const stable = this.options.stabilityFilter.next(guidance);
       if (stable) {
@@ -116,7 +122,15 @@ export class GuidancePipeline {
         this.scheduleExpiry();
       }
     } catch (error) {
-      if (this.active) this.callbacks.onError?.(error instanceof Error ? error : new Error(String(error)));
+      if (this.active) {
+        const normalized = error instanceof Error ? error : new Error(String(error));
+        this.debugState = {
+          ...this.debugState,
+          errorCode: normalized instanceof GuidanceApiError ? normalized.code : "UNKNOWN_ERROR"
+        };
+        this.syncGuardDebug();
+        this.callbacks.onError?.(normalized);
+      }
     } finally {
       this.processing = false;
       if (this.active) this.callbacks.onProcessingChange?.(false);

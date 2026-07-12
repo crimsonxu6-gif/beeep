@@ -99,11 +99,27 @@ export interface GuidanceOutput {
     }>;
     keypointCount: 17;
   };
+  subjectPreflight?: {
+    detected: boolean;
+    confidence: number;
+    bboxNorm?: [number, number, number, number];
+    faceDetected: boolean;
+    reason?: string;
+  };
   timing: {
+    preflightMs?: number;
     visionMs: number;
     guidanceMs: number;
     totalMs: number;
   };
+}
+
+export interface ModelStatus {
+  code: string;
+  message: string;
+  suggestion: string;
+  retryable: boolean;
+  severity: "waiting" | "error";
 }
 
 export interface StableGuidance {

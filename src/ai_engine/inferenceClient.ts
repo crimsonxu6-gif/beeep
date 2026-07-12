@@ -1,5 +1,5 @@
 import { CapturedFrame } from "@/types/frame";
-import { CompositionMode, GuidanceOutput } from "@/types/guidance";
+import { CompositionMode, GuidanceOutput, ModelStatus } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
 import { parseGuidanceJson } from "./jsonParser";
 import { createMockGuidance } from "./mockGuidance";
@@ -19,9 +19,13 @@ export interface GuidanceInferenceClient {
 }
 
 export class GuidanceApiError extends Error {
-  constructor(public readonly code: string, message: string) {
-    super(message);
+  constructor(public readonly status: ModelStatus) {
+    super(status.message);
     this.name = "GuidanceApiError";
+  }
+
+  get code(): string {
+    return this.status.code;
   }
 }
 
@@ -46,6 +50,7 @@ function serializeInput(input: GuidanceEngineInput): Record<string, unknown> {
     composition_mode: input.compositionMode,
     target_ratio: "3:4",
     language: "zh-CN",
+    requires_person: true,
     image: {
       base64: input.frame.image.base64,
       width: input.frame.image.width,
@@ -75,7 +80,13 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
         const guidance = createMockGuidance(input.frame.frameId);
         return { guidance, visionFeatures: null };
       }
-      throw new GuidanceApiError("AI_UNAVAILABLE", "AI 暂时不可用");
+      throw new GuidanceApiError({
+        code: "AI_UNAVAILABLE",
+        message: "AI 暂时无法使用",
+        suggestion: "可以稍后再来试试",
+        retryable: true,
+        severity: "error"
+      });
     }
 
     const controller = new AbortController();
@@ -89,14 +100,30 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
       });
       const text = await response.text();
       if (!response.ok) {
-        let message = response.status >= 500 ? "AI 暂时不可用" : "连接失败";
+        let status: ModelStatus = {
+          code: `HTTP_${response.status}`,
+          message: response.status >= 500 ? "AI 暂时无法使用" : "请求没有完成",
+          suggestion: "可以稍后再试",
+          retryable: response.status >= 500,
+          severity: "error"
+        };
         try {
-          const errorBody = JSON.parse(text) as { error?: { message?: string } };
-          message = errorBody.error?.message ?? message;
+          const errorBody = JSON.parse(text) as {
+            error?: Partial<ModelStatus>;
+          };
+          if (errorBody.error?.code && errorBody.error.message) {
+            status = {
+              code: errorBody.error.code,
+              message: errorBody.error.message,
+              suggestion: errorBody.error.suggestion ?? "可以稍后再试",
+              retryable: errorBody.error.retryable ?? true,
+              severity: errorBody.error.severity === "waiting" ? "waiting" : "error"
+            };
+          }
         } catch {
-          // Keep the short user-facing status.
+          // Keep the deterministic fallback status.
         }
-        throw new GuidanceApiError(`HTTP_${response.status}`, message);
+        throw new GuidanceApiError(status);
       }
       const raw = JSON.parse(text) as unknown;
       return {
@@ -106,9 +133,21 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
     } catch (error) {
       if (error instanceof GuidanceApiError) throw error;
       if (error instanceof Error && error.name === "AbortError") {
-        throw new GuidanceApiError("GUIDANCE_TIMEOUT", "AI 构图超时");
+        throw new GuidanceApiError({
+          code: "MODEL_TIMEOUT",
+          message: "这次分析花得有点久",
+          suggestion: "保持画面稳定，再试一次",
+          retryable: true,
+          severity: "error"
+        });
       }
-      throw new GuidanceApiError("NETWORK_ERROR", "连接失败");
+      throw new GuidanceApiError({
+        code: "NETWORK_ERROR",
+        message: "网络连接不太稳定",
+        suggestion: "检查网络后再试",
+        retryable: true,
+        severity: "error"
+      });
     } finally {
       clearTimeout(timer);
     }

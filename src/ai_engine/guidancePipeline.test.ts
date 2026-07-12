@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { GuidancePipeline } from "./guidancePipeline";
-import { AnalyzeResult, GuidanceEngineInput } from "./inferenceClient";
+import { AnalyzeResult, GuidanceApiError, GuidanceEngineInput } from "./inferenceClient";
 import { StabilityFilter } from "@/stability/stabilityFilter";
 
 function result(frameId: number): AnalyzeResult {
@@ -24,6 +24,30 @@ describe("GuidancePipeline", () => {
     resolvers[0]?.(result(1));
     await vi.waitFor(() => expect(inputs).toEqual([1, 3]));
     resolvers[1]?.(result(3));
+    pipeline.dispose();
+  });
+
+  it("reports model status without creating photography guidance", async () => {
+    const error = new GuidanceApiError({
+      code: "MODEL_BUSY",
+      message: "AI 正在分析上一张画面",
+      suggestion: "保持一下，很快就好",
+      retryable: true,
+      severity: "waiting"
+    });
+    const client = { infer: vi.fn(async () => { throw error; }) };
+    const onError = vi.fn();
+    const onStableGuidance = vi.fn();
+    const pipeline = new GuidancePipeline({
+      client,
+      stabilityFilter: new StabilityFilter({ consistentFrames: 1, confidenceThreshold: 0, debounceMs: 0, expiresMs: 2500 }),
+      allowedFrameLag: 1,
+      expiresMs: 2500
+    });
+    pipeline.setCallbacks({ onError, onStableGuidance });
+    pipeline.acceptFrame(frame(1), "auto");
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(error));
+    expect(onStableGuidance).not.toHaveBeenCalled();
     pipeline.dispose();
   });
 });

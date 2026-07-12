@@ -23,7 +23,7 @@ export function AppShell() {
   const [permission, requestPermission] = useCameraPermissions();
   const [overlaySize, setOverlaySize] = useState<OverlaySize>({ width: 0, height: 0 });
   const [compositionMode, setCompositionMode] = useState<CompositionMode>("auto");
-  const { stableGuidance, visionFeatures, debugState, processing, error, handleFrame, reset } =
+  const { stableGuidance, visionFeatures, debugState, processing, modelStatus, handleFrame, reset } =
     useGuidanceController(compositionMode);
   const capture = useCaptureController(cameraRef);
 
@@ -78,7 +78,13 @@ export function AppShell() {
           visionFeatures={visionFeatures}
           latencyMs={debugState.totalLatencyMs}
           processing={processing}
-          error={capture.error ?? error}
+          modelStatus={capture.error ? {
+            code: "CAMERA_ERROR",
+            message: "相机暂时没有完成操作",
+            suggestion: "请稍后再试",
+            retryable: true,
+            severity: "error"
+          } : modelStatus}
           onBack={() => setRoute("home")}
           onCapture={() => { reset(); void capture.capture(); }}
           onOpenGallery={() => { reset(); void capture.pick(); }}

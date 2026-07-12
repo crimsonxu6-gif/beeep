@@ -104,7 +104,81 @@ def test_invalid_model_output_never_fabricates_bbox() -> None:
     )
     output = GuidanceAdapter().from_model_composition(result, frame_id=1)
     assert output.composition is None
-    assert output.message == "重新取景"
+    assert output.message == "稍微换个角度再试"
+
+
+def model_result(
+    *,
+    decision: str = "refine",
+    bbox: tuple[float, float, float, float] | None = (0.02, 0.2, 0.52, 0.7),
+) -> ModelCompositionResult:
+    return ModelCompositionResult(
+        request_id="req_test",
+        frame_id=1,
+        status="success",
+        decision=decision,
+        bbox_norm=bbox,
+        confidence=0.9,
+        inference_ms=100,
+        prompt_mode="official",
+    )
+
+
+def test_bbox_can_generate_horizontal_and_distance_actions() -> None:
+    output = GuidanceAdapter().from_model_composition(model_result(), frame_id=1)
+    assert len(output.actions) == 2
+    assert {action.type for action in output.actions} == {"move_camera", "adjust_distance"}
+    assert output.message == output.actions[0].message
+
+
+def test_selected_actions_use_distinct_dimensions() -> None:
+    output = GuidanceAdapter().from_model_composition(
+        model_result(bbox=(0.05, 0.0, 0.45, 0.4)),
+        frame_id=1,
+    )
+    assert len(output.actions) <= 2
+    directions = [getattr(action, "direction", None) for action in output.actions]
+    assert not ({"left", "right"} <= set(directions))
+    assert not ({"raise", "lower"} <= set(directions))
+
+
+def test_keep_returns_one_action() -> None:
+    output = GuidanceAdapter().from_model_composition(
+        model_result(decision="keep", bbox=(0.0, 0.0, 1.0, 1.0)),
+        frame_id=1,
+    )
+    assert len(output.actions) == 1
+    assert output.actions[0].message == "这个构图不错，可以拍了"
+
+
+def test_reject_returns_one_action_without_bbox() -> None:
+    output = GuidanceAdapter().from_model_composition(
+        model_result(decision="reject", bbox=None),
+        frame_id=1,
+    )
+    assert len(output.actions) == 1
+    assert output.actions[0].message == "换个角度再试试"
+    assert output.composition is None
+
+
+def test_message_accepts_16_chinese_characters_but_not_17() -> None:
+    base = {
+        "frameId": 1,
+        "priority": "composition",
+        "problem": {"type": "position", "description": "test"},
+        "reason": "test",
+        "summary": "test",
+        "confidence": 0.8,
+    }
+    sixteen = "一二三四五六七八九十一二三四五六"
+    GuidanceOutput.model_validate(
+        {**base, "actions": [{"type": "framing_hint", "message": sixteen}], "message": sixteen}
+    )
+    with pytest.raises(ValidationError):
+        seventeen = f"{sixteen}七"
+        GuidanceOutput.model_validate(
+            {**base, "actions": [{"type": "framing_hint", "message": seventeen}], "message": seventeen}
+        )
 
 
 def test_app_composition_schema_rejects_out_of_range_bbox() -> None:
