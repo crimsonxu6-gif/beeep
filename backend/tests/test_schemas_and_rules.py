@@ -195,7 +195,7 @@ def test_preflight_reason_uses_specific_message(reason_code: str, message: str) 
     output = GuidanceAdapter().from_subject_preflight(
         SubjectPreflightResult(
             state="missing" if reason_code == "no_face" else "uncertain",
-            detected=False,
+            detected=reason_code != "no_face",
             allow_shuttermuse=False,
             confidence=0.3,
             face_detected=reason_code != "no_face",

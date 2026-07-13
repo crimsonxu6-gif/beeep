@@ -184,24 +184,42 @@ class GuidanceOutput(StrictModel):
 
 
 class SubjectPreflightResult(StrictModel):
-    state: Literal["detected", "uncertain", "missing"]
+    state: Literal["confirmed", "uncertain", "missing"]
     detected: bool
     allow_shuttermuse: bool
     confidence: float = Field(ge=0, le=1)
     bbox_norm: tuple[float, float, float, float] | None = None
     face_detected: bool
+    pose_detected: bool = False
+    detection_source: Literal["face", "pose", "history", "none"] = "none"
+    face_confidence: float = Field(default=0, ge=0, le=1)
+    pose_confidence: float = Field(default=0, ge=0, le=1)
+    visible_pose_keypoints: int = Field(default=0, ge=0, le=33)
+    consecutive_missing: int = Field(default=0, ge=0)
+    consecutive_uncertain: int = Field(default=0, ge=0)
+    last_confirmed_age_ms: int | None = Field(default=None, ge=0)
+    history_used: bool = False
+    blocking_enabled: bool = False
+    blocked_model_call: bool = False
     reason: str | None = Field(default=None, max_length=48)
     reason_code: Literal[
         "face_confirmed",
         "face_low_confidence",
         "subject_too_small",
         "no_face",
+        "face_missing_pose_detected",
+        "pose_partial",
+        "no_subject_signal",
         "recent_subject",
         "confirming_subject",
     ]
 
     @model_validator(mode="after")
     def validate_bbox(self):
+        if self.detected != (self.state != "missing"):
+            raise ValueError("detected must match whether state is missing")
+        if self.blocked_model_call and self.allow_shuttermuse:
+            raise ValueError("blocked model calls cannot allow ShutterMuse")
         if self.bbox_norm is None:
             return self
         x1, y1, x2, y2 = self.bbox_norm

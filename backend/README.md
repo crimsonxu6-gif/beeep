@@ -7,9 +7,9 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 `POST /v1/analyze` is the only endpoint new mobile clients should use. In `rules`
-mode it runs the reusable full MediaPipe processor. In `shuttermuse` mode it first runs
-the dedicated face-based `SubjectPreflight`, and calls the GPU service only when a stable
-person proxy is detected or `requires_person=false` is sent.
+mode it runs the reusable full MediaPipe processor. In `shuttermuse` mode it runs a
+face-first, pose-fallback `SubjectPreflight`. Uncertain detections fail open, while only
+confirmed multi-frame absence can block the GPU service when blocking is explicitly enabled.
 
 `GUIDANCE_ENGINE=rules` uses deterministic composition, light, distance and pose rules.
 `GUIDANCE_ENGINE=shuttermuse` calls the dedicated GPU service at
@@ -34,6 +34,13 @@ SUBJECT_PREFLIGHT_ENABLED=1
 SUBJECT_PREFLIGHT_CONFIDENCE=0.55
 SUBJECT_PREFLIGHT_MIN_AREA=0.03
 SUBJECT_PREFLIGHT_TIMEOUT_MS=800
+SUBJECT_PREFLIGHT_BLOCKING=0
+SUBJECT_PRESENCE_TTL_MS=1500
+SUBJECT_MISSING_CONFIRM_FRAMES=3
+SUBJECT_UNCERTAIN_ALLOW_MODEL=1
+SUBJECT_POSE_MIN_VISIBLE_KEYPOINTS=4
+SUBJECT_POSE_MIN_VISIBILITY=0.35
+SUBJECT_POSE_MIN_AREA=0.015
 SUBJECT_PREFLIGHT_CONFIRMATION_FRAMES=3
 SUBJECT_PREFLIGHT_HOLD_MS=1500
 SUBJECT_PREFLIGHT_STATE_TTL_MS=10000
@@ -41,14 +48,17 @@ SUBJECT_PREFLIGHT_STATE_TTL_MS=10000
 
 Requests default to `requires_person=true`. Future scenery, food or object modes can set
 it to false without changing the ShutterMuse service. `/v1/status` includes rolling P50
-and P95 preflight/guidance timings for the latest 200 samples, plus detected/uncertain/
+and P95 preflight/guidance timings for the latest 200 samples, plus confirmed/uncertain/
 missing and blocked outcome counts.
 
-Preflight is intentionally a lightweight face signal rather than full pose estimation.
-`SubjectPresenceGate` turns it into a three-state decision per `stream_id`: detected,
-uncertain or missing. It permits the first two uncertain/missing frames and retains a
-recent detected state for 1.5 seconds before blocking ShutterMuse. A labeled real-device
-false-block evaluation is available under `evaluation/preflight_eval`.
+Preflight uses a cascade: a confirmed face skips Pose, while failed or weak face detection
+runs MediaPipe Pose with lightweight thresholds. `SubjectPresenceGate` produces
+`confirmed`, `uncertain`, or `missing`, retains a confirmed subject for 1.5 seconds, and
+requires three consecutive missing frames before confirming absence. `uncertain` always
+allows ShutterMuse. `SUBJECT_PREFLIGHT_BLOCKING=0` is the default fail-open rollout mode;
+with blocking enabled, only confirmed `missing` blocks a model call. The legacy
+`SUBJECT_PREFLIGHT_CONFIRMATION_FRAMES` and `SUBJECT_PREFLIGHT_HOLD_MS` variables remain
+as fallbacks for existing deployments.
 
 All App-facing composition boxes and target pose points use normalized 0-1 coordinates. Pose model output is accepted only when all 17 COCO keypoints and all 17 visibility values are valid; malformed model output is rejected rather than padded.
 

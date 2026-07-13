@@ -36,6 +36,24 @@ class Settings:
     subject_preflight_confidence: float = float(os.getenv("SUBJECT_PREFLIGHT_CONFIDENCE", "0.55"))
     subject_preflight_min_area: float = float(os.getenv("SUBJECT_PREFLIGHT_MIN_AREA", "0.03"))
     subject_preflight_timeout_ms: int = int(os.getenv("SUBJECT_PREFLIGHT_TIMEOUT_MS", "800"))
+    subject_preflight_blocking: bool = _bool("SUBJECT_PREFLIGHT_BLOCKING", False)
+    subject_presence_ttl_ms: int = int(
+        os.getenv("SUBJECT_PRESENCE_TTL_MS", os.getenv("SUBJECT_PREFLIGHT_HOLD_MS", "1500"))
+    )
+    subject_missing_confirm_frames: int = int(
+        os.getenv(
+            "SUBJECT_MISSING_CONFIRM_FRAMES",
+            os.getenv("SUBJECT_PREFLIGHT_CONFIRMATION_FRAMES", "3"),
+        )
+    )
+    subject_uncertain_allow_model: bool = _bool("SUBJECT_UNCERTAIN_ALLOW_MODEL", True)
+    subject_pose_min_visible_keypoints: int = int(
+        os.getenv("SUBJECT_POSE_MIN_VISIBLE_KEYPOINTS", "4")
+    )
+    subject_pose_min_visibility: float = float(
+        os.getenv("SUBJECT_POSE_MIN_VISIBILITY", "0.35")
+    )
+    subject_pose_min_area: float = float(os.getenv("SUBJECT_POSE_MIN_AREA", "0.015"))
     subject_preflight_confirmation_frames: int = int(
         os.getenv("SUBJECT_PREFLIGHT_CONFIRMATION_FRAMES", "3")
     )

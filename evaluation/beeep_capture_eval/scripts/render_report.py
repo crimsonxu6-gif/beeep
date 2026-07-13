@@ -91,10 +91,26 @@ def render() -> dict:
         "## Subject Preflight",
         "",
         f"- Confusion matrix: TP={matrix['true_positive']}, TN={matrix['true_negative']}, FP={matrix['false_positive']}, FN={matrix['false_negative']}",
+        f"- Cascade-only confusion matrix: {preflight_summary.get('cascade_confusion_matrix', {})}",
         f"- Person-present block rate: {_percent(preflight_summary['person_present_block_rate'])}",
+        f"- Cascade person-missing rate before fail-open: {_percent(preflight_summary.get('cascade_person_missing_rate'))}",
         f"- P50/P95 preflight: {preflight_summary['preflight_p50_ms']} ms / {preflight_summary['preflight_p95_ms']} ms",
+        f"- Face-only FN: {preflight_summary.get('face_only_FN', '-')}",
+        f"- Face + Pose cascade FN: {preflight_summary.get('cascade_FN', '-')}",
+        f"- History recovered: {preflight_summary.get('history_recovered_count', '-')}",
+        f"- Uncertain final states: {preflight_summary.get('uncertain_count', '-')}",
+        f"- Confirmed missing: {preflight_summary.get('confirmed_missing_count', '-')}",
         f"- False negatives: {preflight_summary['false_negative_ids'] or 'none'}",
         f"- False positives: {preflight_summary['false_positive_ids'] or 'none'}",
+        "",
+        "### Original false-negative recovery",
+        "",
+        *(
+            f"- `{image_id}`: {recovery}"
+            for image_id, recovery in preflight_summary.get(
+                "old_false_negative_recovery", {}
+            ).items()
+        ),
         "",
         "## Composition Adapter",
         "",
@@ -148,7 +164,7 @@ def render() -> dict:
 <title>Beeep Offline Evaluation</title>
 <style>body{{font:15px system-ui;margin:32px;max-width:1100px;color:#18201f}}.grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}}.metric{{border:1px solid #d7dfdd;padding:16px;border-radius:6px}}table{{width:100%;border-collapse:collapse}}th,td{{padding:9px;border-bottom:1px solid #e5e9e8;text-align:left}}code{{background:#eef2f1;padding:2px 5px}}</style></head>
 <body><h1>Beeep Offline Evaluation</h1><p>MediaPipe preflight + deterministic GuidanceAdapter fixture report. This is not a ShutterMuse quality score.</p>
-<div class="grid"><div class="metric"><b>Preflight</b><br>{len(preflight_manifest)} cases</div><div class="metric"><b>Block rate</b><br>{_percent(preflight_summary["person_present_block_rate"])}</div><div class="metric"><b>Direction</b><br>{_percent(composition_summary["direction_correct"])}</div><div class="metric"><b>Wrong direction</b><br>{_percent(composition_summary["wrong_direction_rate"])}</div></div>
+<div class="grid"><div class="metric"><b>Preflight</b><br>{len(preflight_manifest)} cases</div><div class="metric"><b>Block rate</b><br>{_percent(preflight_summary["person_present_block_rate"])}</div><div class="metric"><b>Cascade FN</b><br>{preflight_summary.get("cascade_FN", "-")}</div><div class="metric"><b>P95</b><br>{preflight_summary["preflight_p95_ms"]} ms</div></div>
 <h2>Confusion matrix</h2><table><tr><th></th><th>Predicted person</th><th>Predicted missing</th></tr><tr><th>Person present</th><td>{matrix["true_positive"]}</td><td>{matrix["false_negative"]}</td></tr><tr><th>Person absent</th><td>{matrix["false_positive"]}</td><td>{matrix["true_negative"]}</td></tr></table>
 <h2>Composition overlays and actions</h2><table><tr><th>ID</th><th>Scenario</th><th>Guidance</th><th>Visual</th></tr>{rows_html}</table>
 <h2>Still required on a real device</h2><p>{len(DEVICE_PREFLIGHT)} preflight scenarios and {len(DEVICE_COMPOSITION)} composition scenarios remain mandatory; see <code>latest.md</code>.</p></body></html>"""

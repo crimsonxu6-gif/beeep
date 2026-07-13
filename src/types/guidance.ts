@@ -100,12 +100,23 @@ export interface GuidanceOutput {
     keypointCount: 17;
   };
   subjectPreflight?: {
-    state: "detected" | "uncertain" | "missing";
+    state: "confirmed" | "uncertain" | "missing";
     detected: boolean;
     allowShutterMuse: boolean;
     confidence: number;
     bboxNorm?: [number, number, number, number];
     faceDetected: boolean;
+    poseDetected: boolean;
+    detectionSource: "face" | "pose" | "history" | "none";
+    faceConfidence: number;
+    poseConfidence: number;
+    visiblePoseKeypoints: number;
+    consecutiveMissing: number;
+    consecutiveUncertain: number;
+    lastConfirmedAgeMs?: number;
+    historyUsed: boolean;
+    blockingEnabled: boolean;
+    blockedModelCall: boolean;
     reason?: string;
     reasonCode: string;
   };

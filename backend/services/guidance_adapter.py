@@ -95,6 +95,9 @@ class GuidanceAdapter:
             "recent_subject": "正在确认人物位置",
             "confirming_subject": "正在确认人物位置",
             "face_confirmed": "正在确认人物位置",
+            "face_missing_pose_detected": "正在确认人物位置",
+            "pose_partial": "正在确认人物位置",
+            "no_subject_signal": "把人物放进画面再试试",
         }
         descriptions = {
             "no_face": "暂时没有找到人物",
@@ -103,6 +106,9 @@ class GuidanceAdapter:
             "recent_subject": "人物检测暂时波动",
             "confirming_subject": "正在确认人物位置",
             "face_confirmed": "正在确认人物位置",
+            "face_missing_pose_detected": "正在确认人物位置",
+            "pose_partial": "正在确认人物位置",
+            "no_subject_signal": "暂时没有找到人物",
         }
         message = messages[preflight.reason_code]
         description = descriptions[preflight.reason_code]

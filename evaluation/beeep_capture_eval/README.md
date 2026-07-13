@@ -2,7 +2,7 @@
 
 This directory builds a mixed offline dataset and evaluates two separate risks:
 
-1. MediaPipe subject preflight and its stateful presence gate.
+1. MediaPipe Face + Pose cascade preflight and its stateful fail-open presence gate.
 2. ShutterMuse bbox parsing and Beeep `GuidanceAdapter` action semantics.
 
 Third-party and AI-generated image files stay local under `images/` and are gitignored.
@@ -52,6 +52,11 @@ ShutterMuse model score. To evaluate the real model, start a Beeep backend with
 The HTML report is `reports/index.html`; the machine-readable summary is `reports/latest.json`.
 Overlay JPEGs and raw per-image result rows are local-only because they contain derivatives of the
 uncommitted source images.
+
+Preflight reporting separates `face_only_FN`, `cascade_FN`, and the effective
+`person_present_block_rate`. With `SUBJECT_PREFLIGHT_BLOCKING=0`, confirmed missing frames are still
+sent to ShutterMuse; this protects recall while the cascade thresholds are evaluated. The report also
+records detection source, raw Face/Pose signals, history recovery and the original false-negative cases.
 
 ## True-device validation remains required
 

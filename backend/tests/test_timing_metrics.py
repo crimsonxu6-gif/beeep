@@ -16,14 +16,35 @@ def test_timing_metrics_reports_recent_percentiles() -> None:
 
 def test_preflight_metrics_counts_blocked_outcomes() -> None:
     metrics = PreflightMetrics()
-    metrics.record("detected", "face_confirmed", blocked=False)
-    metrics.record("uncertain", "face_low_confidence", blocked=False)
-    metrics.record("missing", "no_face", blocked=True)
+    metrics.record(
+        "confirmed",
+        "face_confirmed",
+        blocked=False,
+        detection_source="face",
+    )
+    metrics.record(
+        "uncertain",
+        "pose_partial",
+        blocked=False,
+        detection_source="pose",
+    )
+    metrics.record(
+        "missing",
+        "no_subject_signal",
+        blocked=True,
+        detection_source="none",
+    )
     assert metrics.snapshot() == {
         "total": 3,
         "passed": 2,
         "blocked": 1,
         "block_rate": 0.3333,
-        "states": {"detected": 1, "uncertain": 1, "missing": 1},
-        "reasons": {"face_confirmed": 1, "face_low_confidence": 1, "no_face": 1},
+        "states": {"confirmed": 1, "uncertain": 1, "missing": 1},
+        "reasons": {
+            "face_confirmed": 1,
+            "pose_partial": 1,
+            "no_subject_signal": 1,
+        },
+        "sources": {"face": 1, "pose": 1, "none": 1},
+        "history_recovered": 0,
     }

@@ -42,13 +42,26 @@ class PreflightMetrics:
         self.lock = threading.Lock()
         self.states: Counter[str] = Counter()
         self.reasons: Counter[str] = Counter()
+        self.sources: Counter[str] = Counter()
         self.passed = 0
         self.blocked = 0
+        self.history_recovered = 0
 
-    def record(self, result_state: str, reason_code: str, blocked: bool) -> None:
+    def record(
+        self,
+        result_state: str,
+        reason_code: str,
+        blocked: bool,
+        *,
+        detection_source: str = "none",
+        history_used: bool = False,
+    ) -> None:
         with self.lock:
             self.states[result_state] += 1
             self.reasons[reason_code] += 1
+            self.sources[detection_source] += 1
+            if history_used:
+                self.history_recovered += 1
             if blocked:
                 self.blocked += 1
             else:
@@ -64,4 +77,6 @@ class PreflightMetrics:
                 "block_rate": round(self.blocked / total, 4) if total else 0,
                 "states": dict(self.states),
                 "reasons": dict(self.reasons),
+                "sources": dict(self.sources),
+                "history_recovered": self.history_recovered,
             }

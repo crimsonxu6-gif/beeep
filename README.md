@@ -95,15 +95,17 @@ SHUTTERMUSE_SERVICE_URL=http://127.0.0.1:8100
 
 The GPU process loads one model and one processor, performs parse-checked warmup before
 readiness, and permits one active plus one replaceable pending generation. In ShutterMuse
-mode a lightweight MediaPipe face preflight first checks that a person is present; the
-full pose/scene processor remains exclusive to rules mode. Beeep scores the model's
+mode a lightweight MediaPipe cascade checks Face first and runs Pose only when Face is
+weak or absent; the full pose/scene processor remains exclusive to rules mode. Beeep scores the model's
 normalized crop into one or two deterministic actions. Invalid boxes and model failures
 return explicit status messages and never produce a fabricated crop or silent rules fallback.
 
-The lightweight face signal is stateful rather than a one-frame hard gate. Per-camera
-`stream_id` state distinguishes detected, uncertain and missing, tolerates two transient
-frames and retains recent subject presence briefly. Use `evaluation/preflight_eval` to
-measure labeled false-block rate on real-device scenarios.
+The subject signal is stateful rather than a one-frame hard gate. Per-camera `stream_id`
+state distinguishes confirmed, uncertain and missing, tolerates two transient missing
+frames, and retains recent subject presence for 1.5 seconds. Uncertain results always
+fail open. Preflight blocking defaults off and can be enabled only after evaluation with
+`SUBJECT_PREFLIGHT_BLOCKING=1`. Use `evaluation/beeep_capture_eval` to measure labeled
+face-only misses, cascade misses and the effective model block rate.
 
 Use `GUIDANCE_ENGINE=rules` to run without the GPU service. Use
 `GUIDANCE_ENGINE=shuttermuse` only after `http://127.0.0.1:8100/ready` reports ready.

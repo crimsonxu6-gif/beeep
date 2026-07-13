@@ -79,12 +79,14 @@ class FakeShutterMuseService:
 
 def detected_subject() -> SubjectPreflightResult:
     return SubjectPreflightResult(
-        state="detected",
+        state="confirmed",
         detected=True,
         allow_shuttermuse=True,
         confidence=0.9,
         bbox_norm=(0.2, 0.1, 0.8, 0.95),
         face_detected=True,
+        detection_source="face",
+        face_confidence=0.9,
         reason_code="face_confirmed",
     )
 
@@ -105,6 +107,11 @@ def test_missing_subject_skips_shuttermuse(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(analyze_module, "guidance_service", service)
     monkeypatch.setattr(
         analyze_module,
+        "subject_presence_gate",
+        SubjectPresenceGate(blocking_enabled=True, missing_confirm_frames=3),
+    )
+    monkeypatch.setattr(
+        analyze_module,
         "subject_preflight",
         FakePreflight(
             SubjectPreflightResult(
@@ -114,7 +121,7 @@ def test_missing_subject_skips_shuttermuse(monkeypatch: pytest.MonkeyPatch) -> N
                 confidence=0,
                 face_detected=False,
                 reason="暂时没有找到人物",
-                reason_code="no_face",
+                reason_code="no_subject_signal",
             )
         ),
     )
@@ -127,6 +134,31 @@ def test_missing_subject_skips_shuttermuse(monkeypatch: pytest.MonkeyPatch) -> N
     assert body["problem"]["type"] == "subject_missing"
     assert body["actions"][0]["message"] == "把人物放进画面再试试"
     assert body.get("composition") is None
+
+
+def test_default_fail_open_missing_still_calls_shuttermuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = FakeShutterMuseService()
+    monkeypatch.setattr(analyze_module, "guidance_service", service)
+    monkeypatch.setattr(
+        analyze_module,
+        "subject_preflight",
+        FakePreflight(
+            SubjectPreflightResult(
+                state="missing",
+                detected=False,
+                allow_shuttermuse=False,
+                confidence=0,
+                face_detected=False,
+                reason_code="no_subject_signal",
+            )
+        ),
+    )
+    response = client.post("/v1/analyze", json=request_payload())
+    assert response.status_code == 200
+    assert service.calls == 1
+    assert response.json()["subject_preflight"]["blocked_model_call"] is False
 
 
 def test_non_person_mode_skips_preflight_and_calls_shuttermuse(

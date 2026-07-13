@@ -50,6 +50,7 @@ export function GuidanceDebugPanel({
   compositionMode
 }: GuidanceDebugPanelProps) {
   const guidance = stableGuidance?.guidance;
+  const preflight = guidance?.subjectPreflight;
 
   return (
     <View pointerEvents="none" style={styles.panel}>
@@ -62,7 +63,10 @@ export function GuidanceDebugPanel({
       <Text style={styles.line}>Engine: {debugState.guidanceEngine ?? "-"}</Text>
       <Text style={styles.line}>Error: {debugState.errorCode ?? "-"}</Text>
       <Text style={styles.line}>Vision: {visionLabel(visionFeatures)}</Text>
-      <Text style={styles.line}>Preflight: {guidance?.subjectPreflight ? `${guidance.subjectPreflight.state}/${String(guidance.subjectPreflight.allowShutterMuse)} ${Math.round(guidance.subjectPreflight.confidence * 100)}%` : "-"}</Text>
+      <Text style={styles.line}>Preflight: {preflight ? `${preflight.state}/${preflight.detectionSource} ${Math.round(preflight.confidence * 100)}%` : "-"}</Text>
+      <Text style={styles.line}>Face/Pose: {preflight ? `${Math.round(preflight.faceConfidence * 100)}%/${Math.round(preflight.poseConfidence * 100)}% (${preflight.visiblePoseKeypoints})` : "-"}</Text>
+      <Text style={styles.line}>Gate: {preflight ? `missing=${preflight.consecutiveMissing} age=${preflight.lastConfirmedAgeMs ?? "-"}ms history=${String(preflight.historyUsed)}` : "-"}</Text>
+      <Text style={styles.line}>Blocking: {preflight ? `${String(preflight.blockingEnabled)}/${String(preflight.blockedModelCall)}` : "-"}</Text>
       <Text style={styles.line}>Action: {actionLabel(stableGuidance)}</Text>
       <Text style={styles.line}>Priority: {guidance?.priority ?? "-"}</Text>
       <Text style={styles.line}>Problem: {guidance?.problem?.description ?? "-"}</Text>

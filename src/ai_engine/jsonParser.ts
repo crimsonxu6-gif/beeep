@@ -441,8 +441,14 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
     const preflight = asRecord(preflightValue);
     const bbox = preflight.bbox_norm ?? preflight.bboxNorm;
     const state = preflight.state;
-    if (state !== "detected" && state !== "uncertain" && state !== "missing") {
+    if (state !== "confirmed" && state !== "uncertain" && state !== "missing") {
       throw new GuidanceParseError("Invalid subject preflight state.");
+    }
+    const detectionSource = String(
+      preflight.detection_source ?? preflight.detectionSource ?? "none"
+    );
+    if (!["face", "pose", "history", "none"].includes(detectionSource)) {
+      throw new GuidanceParseError("Invalid subject preflight detection source.");
     }
     output.subjectPreflight = {
       state,
@@ -450,8 +456,22 @@ export function validateGuidanceOutput(value: unknown): GuidanceOutput {
       allowShutterMuse: Boolean(preflight.allow_shuttermuse ?? preflight.allowShutterMuse),
       confidence: clamp01(preflight.confidence, 0),
       faceDetected: Boolean(preflight.face_detected ?? preflight.faceDetected),
+      poseDetected: Boolean(preflight.pose_detected ?? preflight.poseDetected),
+      detectionSource: detectionSource as "face" | "pose" | "history" | "none",
+      faceConfidence: clamp01(preflight.face_confidence ?? preflight.faceConfidence, 0),
+      poseConfidence: clamp01(preflight.pose_confidence ?? preflight.poseConfidence, 0),
+      visiblePoseKeypoints: Math.max(0, Number(preflight.visible_pose_keypoints ?? preflight.visiblePoseKeypoints) || 0),
+      consecutiveMissing: Math.max(0, Number(preflight.consecutive_missing ?? preflight.consecutiveMissing) || 0),
+      consecutiveUncertain: Math.max(0, Number(preflight.consecutive_uncertain ?? preflight.consecutiveUncertain) || 0),
+      historyUsed: Boolean(preflight.history_used ?? preflight.historyUsed),
+      blockingEnabled: Boolean(preflight.blocking_enabled ?? preflight.blockingEnabled),
+      blockedModelCall: Boolean(preflight.blocked_model_call ?? preflight.blockedModelCall),
       reasonCode: String(preflight.reason_code ?? preflight.reasonCode ?? "")
     };
+    const lastConfirmedAgeMs = Number(preflight.last_confirmed_age_ms ?? preflight.lastConfirmedAgeMs);
+    if (Number.isFinite(lastConfirmedAgeMs) && lastConfirmedAgeMs >= 0) {
+      output.subjectPreflight.lastConfirmedAgeMs = lastConfirmedAgeMs;
+    }
     if (
       Array.isArray(bbox) &&
       bbox.length === 4 &&

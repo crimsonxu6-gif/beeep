@@ -106,6 +106,7 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     total_started = time.perf_counter()
     features: VisionFeatures | None = None
     preflight: SubjectPreflightResult | None = None
+    raw_preflight: SubjectPreflightResult | None = None
     preflight_ms: int | None = None
     vision_ms = 0
 
@@ -120,8 +121,27 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                     raw_preflight,
                 )
                 preflight_ms = int((time.perf_counter() - preflight_started) * 1000)
-                blocked = not preflight.allow_shuttermuse
-                preflight_metrics.record(preflight.state, preflight.reason_code, blocked)
+                blocked = preflight.blocked_model_call
+                preflight_metrics.record(
+                    preflight.state,
+                    preflight.reason_code,
+                    blocked,
+                    detection_source=preflight.detection_source,
+                    history_used=preflight.history_used,
+                )
+                if settings.shuttermuse_debug_output:
+                    logger.info(
+                        "preflight_complete request_id=%s frame_id=%s raw_state=%s "
+                        "final_state=%s source=%s blocked=%s history_used=%s preflight_ms=%s",
+                        get_request_id(),
+                        request.frame_id,
+                        raw_preflight.state,
+                        preflight.state,
+                        preflight.detection_source,
+                        blocked,
+                        preflight.history_used,
+                        preflight_ms,
+                    )
                 if blocked:
                     output = guidance_adapter.from_subject_preflight(preflight, request.frame_id)
                     total_ms = int((time.perf_counter() - total_started) * 1000)
@@ -161,12 +181,15 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         action_messages = [action.message for action in output.actions]
         logger.info(
             "analyze_complete request_id=%s frame_id=%s target_ratio=%s composition_mode=%s "
-            "preflight=%s bbox_norm=%s decision=%s actions=%s preflight_ms=%s guidance_ms=%s total_ms=%s",
+            "preflight=%s source=%s blocked=%s bbox_norm=%s decision=%s actions=%s "
+            "preflight_ms=%s guidance_ms=%s total_ms=%s",
             get_request_id(),
             request.frame_id,
             request.target_ratio,
             request.composition_mode,
-            preflight.detected if preflight else None,
+            preflight.state if preflight else None,
+            preflight.detection_source if preflight else None,
+            preflight.blocked_model_call if preflight else None,
             output.composition.bbox_norm if output.composition else None,
             output.composition.decision if output.composition else None,
             action_messages,
