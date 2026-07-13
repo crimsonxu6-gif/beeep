@@ -1,0 +1,32 @@
+{
+  "confusion_matrix": {
+    "false_negative": 7,
+    "false_positive": 2,
+    "true_negative": 3,
+    "true_positive": 18
+  },
+  "evaluation_mode": "local_mediapipe_preflight_with_stateful_gate",
+  "false_negative_ids": [
+    "public_back_view",
+    "public_looking_down",
+    "public_hat",
+    "public_group",
+    "ai_back_view",
+    "ai_distant_tiny",
+    "tf_mirror_side"
+  ],
+  "false_positive_ids": [
+    "ai_mannequin_poster",
+    "tf_mirror_mannequin"
+  ],
+  "person_present_block_rate": 0.28,
+  "preflight_p50_ms": 17.0,
+  "preflight_p95_ms": 24.0,
+  "scenario_count": 25,
+  "source_counts": {
+    "ai_generated": 10,
+    "public_real": 10,
+    "transformed": 10
+  },
+  "total": 30
+}

@@ -1,0 +1,14 @@
+{
+  "bbox_parse_success": 1.0,
+  "contradictory_actions": 0,
+  "direction_correct": 1.0,
+  "evaluation_mode": "fixture_adapter",
+  "failed_primary_ids": [],
+  "guidance_p50_ms": 0.0,
+  "guidance_p95_ms": 0.0,
+  "primary_action_correct": 1.0,
+  "secondary_action_helpful": 1.0,
+  "total": 20,
+  "wrong_direction_ids": [],
+  "wrong_direction_rate": 0.0
+}

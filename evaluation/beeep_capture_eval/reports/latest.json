@@ -1,0 +1,102 @@
+{
+  "composition": {
+    "bbox_parse_success": 1.0,
+    "contradictory_actions": 0,
+    "direction_correct": 1.0,
+    "evaluation_mode": "fixture_adapter",
+    "failed_primary_ids": [],
+    "guidance_p50_ms": 0.0,
+    "guidance_p95_ms": 0.0,
+    "primary_action_correct": 1.0,
+    "secondary_action_helpful": 1.0,
+    "total": 20,
+    "wrong_direction_ids": [],
+    "wrong_direction_rate": 0.0
+  },
+  "composition_case_count": 20,
+  "image_library_count": 36,
+  "library_source_counts": {
+    "ai_generated": 10,
+    "public_real": 10,
+    "transformed": 16
+  },
+  "minimum_device_composition": [
+    "推荐框偏左和偏右时，用户实际移动方向",
+    "推荐框偏上和偏下时，取景移动语义",
+    "人物过小时“让人物再大一些”的可执行性",
+    "水平移动加距离调整的双指令可执行性",
+    "模型 keep 时是否应该立即拍摄",
+    "连续十帧中构图框和主建议的稳定性"
+  ],
+  "minimum_device_preflight": [
+    "正面半身与正面全身",
+    "大侧脸与完全背影",
+    "手部遮脸或口罩加帽子",
+    "真实弱光与强逆光",
+    "人物很远且占画面很小",
+    "三人以上且人物贴近边缘",
+    "前置摄像头水平镜像",
+    "走动中的轻度运动模糊",
+    "短暂出框后 1.5 秒内重新进入"
+  ],
+  "preflight": {
+    "confusion_matrix": {
+      "false_negative": 7,
+      "false_positive": 2,
+      "true_negative": 3,
+      "true_positive": 18
+    },
+    "evaluation_mode": "local_mediapipe_preflight_with_stateful_gate",
+    "false_negative_ids": [
+      "public_back_view",
+      "public_looking_down",
+      "public_hat",
+      "public_group",
+      "ai_back_view",
+      "ai_distant_tiny",
+      "tf_mirror_side"
+    ],
+    "false_positive_ids": [
+      "ai_mannequin_poster",
+      "tf_mirror_mannequin"
+    ],
+    "person_present_block_rate": 0.28,
+    "preflight_p50_ms": 17.0,
+    "preflight_p95_ms": 24.0,
+    "scenario_count": 25,
+    "source_counts": {
+      "ai_generated": 10,
+      "public_real": 10,
+      "transformed": 10
+    },
+    "total": 30
+  },
+  "preflight_case_count": 30,
+  "scenario_coverage": [
+    "back_view",
+    "blurred_face",
+    "empty_room",
+    "empty_room_blurred",
+    "empty_room_dark",
+    "face_occluded",
+    "front_face",
+    "full_body",
+    "hat",
+    "looking_down",
+    "mask",
+    "mask_and_hat",
+    "motion_blur_group",
+    "multiple_people",
+    "multiple_people_at_edge",
+    "negative_mannequin_poster",
+    "negative_mannequin_poster_mirrored",
+    "overexposed",
+    "person_very_small",
+    "side_profile",
+    "side_profile_mirrored",
+    "sunglasses",
+    "sunglasses_backlight",
+    "weak_light",
+    "weak_light_motion_blur"
+  ]
+}

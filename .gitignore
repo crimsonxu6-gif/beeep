@@ -21,3 +21,5 @@ backend/.venv/
 evaluation/beeep_capture_eval/images/*
 !evaluation/beeep_capture_eval/images/.gitkeep
 evaluation/beeep_capture_eval/results*.jsonl
+evaluation/beeep_capture_eval/reports/artifacts/
+evaluation/beeep_capture_eval/reports/data/
