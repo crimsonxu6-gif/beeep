@@ -170,6 +170,17 @@ class GuidanceTiming(StrictModel):
     total_ms: int = Field(ge=0)
 
 
+class ModelEvaluationMetadata(StrictModel):
+    prompt_mode: Literal["official", "beeep_json"]
+    coordinate_source: Literal[
+        "bbox_norm", "bbox_1000", "bbox_pixels", "official_1000", "official_pixels"
+    ] | None = None
+    decision: Literal["keep", "refine", "reject"] | None = None
+    bbox_norm: tuple[float, float, float, float] | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    inference_ms: int = Field(ge=0)
+
+
 class GuidanceOutput(StrictModel):
     frameId: int | None = None
     priority: GuidancePriority
@@ -181,6 +192,7 @@ class GuidanceOutput(StrictModel):
     confidence: float = Field(ge=0, le=1)
     composition: CompositionRecommendation | None = None
     pose: PoseRecommendation | None = None
+    model_metadata: ModelEvaluationMetadata | None = None
 
 
 class SubjectPreflightResult(StrictModel):
@@ -242,6 +254,7 @@ class AnalyzeResponse(StrictModel):
     confidence: float = Field(ge=0, le=1)
     composition: CompositionRecommendation | None = None
     pose: PoseRecommendation | None = None
+    model_metadata: ModelEvaluationMetadata | None = None
     vision_features: VisionFeatures | None = None
     subject_preflight: SubjectPreflightResult | None = None
     timing: GuidanceTiming

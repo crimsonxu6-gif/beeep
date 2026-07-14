@@ -209,3 +209,8 @@ def test_model_errors_are_structured_without_rule_fallback(
     assert body["error"]["message"] == message
     assert body["error"]["suggestion"] == suggestion
     assert body["error"]["retryable"] is True
+    assert body["subject_preflight"]["state"] == "confirmed"
+    assert body["subject_preflight"]["detection_source"] == "face"
+    assert body["timing"]["preflight_ms"] >= 0
+    assert body["timing"]["guidance_ms"] >= 0
+    assert body["timing"]["total_ms"] >= body["timing"]["guidance_ms"]

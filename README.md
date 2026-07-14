@@ -107,6 +107,10 @@ fail open. Preflight blocking defaults off and can be enabled only after evaluat
 `SUBJECT_PREFLIGHT_BLOCKING=1`. Use `evaluation/beeep_capture_eval` to measure labeled
 face-only misses, cascade misses and the effective model block rate.
 
+Live ShutterMuse quality evaluation uses the same 20 composition images but writes separate
+API results, bbox overlays, and a persistent human review manifest. The deterministic fixture
+report remains separate and must not be interpreted as model quality.
+
 Use `GUIDANCE_ENGINE=rules` to run without the GPU service. Use
 `GUIDANCE_ENGINE=shuttermuse` only after `http://127.0.0.1:8100/ready` reports ready.
 

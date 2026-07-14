@@ -26,7 +26,6 @@ class SubjectPresenceGate:
         blocking_enabled: bool | None = None,
         presence_ttl_ms: int | None = None,
         missing_confirm_frames: int | None = None,
-        uncertain_allow_model: bool | None = None,
         state_ttl_ms: int | None = None,
     ) -> None:
         self.lock = threading.Lock()
@@ -39,11 +38,6 @@ class SubjectPresenceGate:
         self.presence_ttl_ms = presence_ttl_ms or settings.subject_presence_ttl_ms
         self.missing_confirm_frames = max(
             1, missing_confirm_frames or settings.subject_missing_confirm_frames
-        )
-        self.uncertain_allow_model = (
-            settings.subject_uncertain_allow_model
-            if uncertain_allow_model is None
-            else uncertain_allow_model
         )
         self.state_ttl_ms = state_ttl_ms or settings.subject_preflight_state_ttl_ms
 
@@ -86,6 +80,7 @@ class SubjectPresenceGate:
                 state.consecutive_missing = 0
                 if recent:
                     return self._history_result(result, state, now)
+                # Product invariant: uncertain signals always fail open.
                 return self._finalize(
                     result,
                     state,
@@ -93,10 +88,11 @@ class SubjectPresenceGate:
                     allow=True,
                 )
 
-            state.consecutive_missing += 1
             state.consecutive_uncertain = 0
             if recent:
+                state.consecutive_missing = 0
                 return self._history_result(result, state, now)
+            state.consecutive_missing += 1
             if state.consecutive_missing < self.missing_confirm_frames:
                 return self._finalize(
                     result,

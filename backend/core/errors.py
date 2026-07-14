@@ -51,6 +51,7 @@ class ApiError(Exception):
         self.frame_id = frame_id
         self.suggestion = suggestion
         self.retryable = retryable
+        self.context: dict[str, object] = {}
 
 
 def present_error(exc: ApiError) -> UserError:
@@ -66,18 +67,20 @@ def present_error(exc: ApiError) -> UserError:
 
 async def api_error_handler(_: Request, exc: ApiError) -> JSONResponse:
     error = present_error(exc)
+    content: dict[str, object] = {
+        "request_id": get_request_id(),
+        "frame_id": exc.frame_id,
+        "status": "error",
+        "error": {
+            "code": exc.code,
+            "message": error.message,
+            "suggestion": error.suggestion,
+            "retryable": error.retryable,
+            "severity": error.severity,
+        },
+    }
+    content.update(exc.context)
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "request_id": get_request_id(),
-            "frame_id": exc.frame_id,
-            "status": "error",
-            "error": {
-                "code": exc.code,
-                "message": error.message,
-                "suggestion": error.suggestion,
-                "retryable": error.retryable,
-                "severity": error.severity,
-            },
-        },
+        content=content,
     )

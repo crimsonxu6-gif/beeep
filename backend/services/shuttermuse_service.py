@@ -5,7 +5,7 @@ import logging
 from core.config import settings
 from core.errors import ApiError
 from core.request_context import get_request_id
-from schemas import AnalyzeRequest, GuidanceOutput, VisionFeatures
+from schemas import AnalyzeRequest, GuidanceOutput, ModelEvaluationMetadata, VisionFeatures
 from services.guidance_adapter import GuidanceAdapter
 from services.shuttermuse_client import ShutterMuseModelClient
 
@@ -31,6 +31,18 @@ class ShutterMuseGuidanceService:
         output = self.guidance_adapter.from_model_composition(
             model_result,
             frame_id=request.frame_id,
+        )
+        output = output.model_copy(
+            update={
+                "model_metadata": ModelEvaluationMetadata(
+                    prompt_mode=model_result.prompt_mode,
+                    coordinate_source=model_result.coordinate_source,
+                    decision=model_result.decision,
+                    bbox_norm=model_result.bbox_norm,
+                    confidence=model_result.confidence,
+                    inference_ms=model_result.inference_ms,
+                )
+            }
         )
         if settings.shuttermuse_debug_output:
             action = output.actions[0] if output.actions else None

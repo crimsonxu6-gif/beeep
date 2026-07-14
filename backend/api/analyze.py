@@ -90,6 +90,7 @@ def _response(
         confidence=output.confidence,
         composition=output.composition,
         pose=output.pose,
+        model_metadata=output.model_metadata,
         vision_features=features,
         subject_preflight=preflight,
         timing=GuidanceTiming(
@@ -109,6 +110,7 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     raw_preflight: SubjectPreflightResult | None = None
     preflight_ms: int | None = None
     vision_ms = 0
+    guidance_started: float | None = None
 
     try:
         if guidance_service.engine_name == "shuttermuse":
@@ -173,6 +175,27 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         guidance_ms = int((time.perf_counter() - guidance_started) * 1000)
     except ApiError as exc:
         exc.frame_id = request.frame_id
+        guidance_ms = (
+            int((time.perf_counter() - guidance_started) * 1000)
+            if guidance_started is not None
+            else None
+        )
+        total_ms = int((time.perf_counter() - total_started) * 1000)
+        error_timing: dict[str, int] = {
+            "vision_ms": vision_ms,
+            "total_ms": total_ms,
+        }
+        if preflight_ms is not None:
+            error_timing["preflight_ms"] = preflight_ms
+        if guidance_ms is not None:
+            error_timing["guidance_ms"] = guidance_ms
+        exc.context = {
+            "subject_preflight": (
+                preflight.model_dump(mode="json", exclude_none=True) if preflight else None
+            ),
+            "timing": error_timing,
+        }
+        timing_metrics.record(preflight_ms=preflight_ms, guidance_ms=guidance_ms)
         raise
 
     total_ms = int((time.perf_counter() - total_started) * 1000)

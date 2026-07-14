@@ -41,15 +41,30 @@ Individual stages:
 
 `fixture` mode validates deterministic bbox-to-action behavior only. It must not be presented as a
 ShutterMuse model score. To evaluate the real model, start a Beeep backend with
-`GUIDANCE_ENGINE=shuttermuse` and run:
+`GUIDANCE_ENGINE=shuttermuse`, keep `SUBJECT_PREFLIGHT_BLOCKING=0`, and run:
 
 ```powershell
 .\.venv\Scripts\python.exe evaluation\beeep_capture_eval\scripts\run_composition_eval.py `
   --mode api `
-  --api-url http://127.0.0.1:8000/v1/analyze
+  --api-url http://127.0.0.1:8000/v1/analyze `
+  --request-timeout 180
 ```
 
-The HTML report is `reports/index.html`; the machine-readable summary is `reports/latest.json`.
+The modes write separate artifacts:
+
+- fixture: `reports/composition_fixture_summary.json` and
+  `reports/data/composition_fixture_results.jsonl`;
+- live API: `reports/composition_api_summary.json`,
+  `reports/data/composition_api_results.jsonl`, and `reports/artifacts/shuttermuse_api/`;
+- human review: `manifests/composition_reviews.jsonl`.
+
+The API runner preserves existing review values, records errors per image without stopping the batch,
+and saves model prompt mode, coordinate source, decision, normalized bbox, confidence, preflight
+signal, actions, and timing. Fill `bbox_quality` with an integer from 1 to 5 and the review booleans
+with `true` or `false`; rerunning the API evaluation reloads those values into the report.
+
+The combined HTML report is `reports/index.html`; the machine-readable summary is
+`reports/latest.json`. It always separates preflight, deterministic fixture, and live model results.
 Overlay JPEGs and raw per-image result rows are local-only because they contain derivatives of the
 uncommitted source images.
 

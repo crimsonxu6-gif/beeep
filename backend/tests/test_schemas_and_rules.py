@@ -18,6 +18,7 @@ from schemas import (
 from services.guidance_adapter import GuidanceAdapter
 from services.service_factory import create_guidance_service
 from services.shuttermuse_client import ModelCompositionResult
+from services.shuttermuse_service import ShutterMuseGuidanceService
 
 
 def features(center_x: float) -> VisionFeatures:
@@ -92,6 +93,29 @@ def test_model_bbox_becomes_normalized_product_guidance() -> None:
     assert output.composition is not None
     assert output.composition.bbox_norm == (0.05, 0.1, 0.55, 0.9)
     assert output.actions[0].type == "move_camera"
+
+
+def test_shuttermuse_service_preserves_model_evaluation_metadata(monkeypatch) -> None:
+    model_output = ModelCompositionResult(
+        request_id="req_model",
+        frame_id=1,
+        status="success",
+        decision="refine",
+        bbox_norm=(0.1, 0.1, 0.8, 0.9),
+        confidence=0.84,
+        inference_ms=420,
+        prompt_mode="official",
+        coordinate_source="official_1000",
+    )
+    service = ShutterMuseGuidanceService()
+    monkeypatch.setattr(service.client, "infer", lambda _request: model_output)
+    output = service.analyze(request(), None)
+    assert output.model_metadata is not None
+    assert output.model_metadata.prompt_mode == "official"
+    assert output.model_metadata.coordinate_source == "official_1000"
+    assert output.model_metadata.decision == "refine"
+    assert output.model_metadata.bbox_norm == (0.1, 0.1, 0.8, 0.9)
+    assert output.model_metadata.inference_ms == 420
 
 
 def test_invalid_model_output_never_fabricates_bbox() -> None:

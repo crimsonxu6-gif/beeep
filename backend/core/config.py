@@ -46,7 +46,6 @@ class Settings:
             os.getenv("SUBJECT_PREFLIGHT_CONFIRMATION_FRAMES", "3"),
         )
     )
-    subject_uncertain_allow_model: bool = _bool("SUBJECT_UNCERTAIN_ALLOW_MODEL", True)
     subject_pose_min_visible_keypoints: int = int(
         os.getenv("SUBJECT_POSE_MIN_VISIBLE_KEYPOINTS", "4")
     )

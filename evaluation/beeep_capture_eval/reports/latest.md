@@ -1,52 +1,34 @@
-# Beeep Offline Evaluation Report
+# Beeep Photography Evaluation Report
 
-> This report uses local MediaPipe for preflight and deterministic bbox fixtures for Adapter validation. 
-> It does not claim ShutterMuse model quality; run composition evaluation in `api` mode for that.
+> Results are separated into subject preflight, deterministic GuidanceAdapter fixture, and live ShutterMuse API layers.
+> Fixture output is not evidence of ShutterMuse composition quality.
 
 ## Dataset
 
 - Local image library: 36 ({'public_real': 10, 'ai_generated': 10, 'transformed': 16})
 - Subject preflight cases: 30 ({'public_real': 10, 'ai_generated': 10, 'transformed': 10})
-- Composition action cases: 20
+- Composition cases: 20
 - Covered subject scenarios: 25
 
-## Subject Preflight
+## 1. Subject Preflight
 
-- Confusion matrix: TP=25, TN=0, FP=5, FN=0
-- Cascade-only confusion matrix: {'false_negative': 2, 'false_positive': 2, 'true_negative': 3, 'true_positive': 23}
-- Person-present block rate: 0.0%
-- Cascade person-missing rate before fail-open: 8.0%
-- P50/P95 preflight: 18.0 ms / 74.0 ms
+- Final fail-open gate: {'false_negative': 0, 'false_positive': 5, 'true_negative': 0, 'true_positive': 25}
 - Face-only FN: 7
-- Face + Pose cascade FN: 2
-- History recovered: 0
-- Uncertain final states: 0
-- Confirmed missing: 5
-- False negatives: none
-- False positives: ['public_empty_room', 'ai_mannequin_poster', 'tf_dark_empty', 'tf_blur_empty', 'tf_mirror_mannequin']
+- Face + Pose cascade: {'false_negative': 2, 'false_positive': 2, 'true_negative': 3, 'true_positive': 23}
+- Final person-present block rate: 0.0%
+- P50/P95: 18.0 / 74.0 ms
 
-### Original false-negative recovery
+## 2. GuidanceAdapter Fixture
 
-- `ai_back_view`: pose
-- `ai_distant_tiny`: fail_open
-- `public_back_view`: pose
-- `public_group`: fail_open
-- `public_hat`: pose
-- `public_looking_down`: pose
-- `tf_mirror_side`: pose
+This layer verifies deterministic bbox-to-action conversion only.
 
-## Composition Adapter
-
-- Evaluation mode: `fixture_adapter`
+- Total: 20
 - Bbox parse success: 100.0%
-- Direction correct: 100.0%
-- Primary action correct: 100.0%
-- Secondary action helpful: 100.0%
+- Fixture direction match: 100.0%
 - Contradictory actions: 0
-- Wrong direction rate: 0.0%
-- P50/P95 guidance: 0.0 ms / 0.0 ms
+- Wrong direction: 0 / 20 (0.0%)
 
-## Guidance Samples
+### Fixture Samples
 
 - `comp_001` front_face: 这个构图不错，可以拍了
 - `comp_002` side_profile: 镜头稍微往左移 / 让人物再大一些
@@ -59,9 +41,36 @@
 - `comp_009` mask: 这个构图不错，可以拍了
 - `comp_010` full_body: 镜头稍微往右移
 
-## Wrong Direction Cases
+## 3. ShutterMuse API
 
-- none
+- Total: 20
+- API success: 11 / 20 (55.0%)
+- Bbox parse: 11 / 20 (55.0%)
+- Invalid output: 9 / 20 (45.0%)
+- Decision distribution: {'keep': 4, 'refine': 7}
+- Coordinate sources: {'official_1000': 11}
+- Errors: {'INVALID_MODEL_OUTPUT': 9}
+- Human-reviewed direction correct: -
+- Human-reviewed wrong direction: pending human review
+- Human-reviewed primary action helpful: -
+- Human-reviewed secondary action helpful: -
+- Guidance P50/P95: 6455.0 / 8396.0 ms
+- Total P50/P95: 6465.0 / 8404.0 ms
+- Human review: 0 reviewed, 20 pending
+- Bbox quality mean/median: None / None
+
+### API Samples
+
+- `comp_001` front_face: no action
+- `comp_002` side_profile: 这个构图不错，可以拍了
+- `comp_003` back_view: 让人物再大一些
+- `comp_004` looking_down: no action
+- `comp_005` hat: 让人物再大一些
+- `comp_006` sunglasses: 这个构图不错，可以拍了
+- `comp_007` multiple_people: 构图稍微调整一下
+- `comp_008` empty_room: no action
+- `comp_009` mask: no action
+- `comp_010` full_body: 这个构图不错，可以拍了
 
 ## Minimum True-device Preflight Validation (9)
 
@@ -86,7 +95,7 @@
 
 ## Limitations
 
-- AI-generated images are boundary coverage, not the only quality source.
-- Public images are license-checked at download time but are not guaranteed smartphone captures.
-- Derived images simulate camera defects; they do not replace real sensor, motion, and lens behavior.
-- The 9 preflight and 6 composition scenarios above still require manual true-device validation.
+- AI-generated images provide boundary coverage and are not the only quality source.
+- Public and transformed images do not replace real sensor, motion, lens, or front-camera behavior.
+- Human review fields must be completed before interpreting live API composition quality.
+- The 9 preflight and 6 composition scenarios above still require true-device validation.
