@@ -12,6 +12,12 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+export type GuidanceTriggerMode = "manual" | "stable_auto" | "continuous";
+
+export function guidanceTriggerModeFromEnv(value: string | undefined): GuidanceTriggerMode {
+  return value === "stable_auto" || value === "continuous" ? value : "manual";
+}
+
 export function isMockEnabled(isDev: boolean, value: string | undefined): boolean {
   return isDev && value === "1";
 }
@@ -21,6 +27,9 @@ const runtimeIsDev = typeof __DEV__ !== "undefined" && __DEV__;
 export const appConfig = {
   debugPanel: process.env.EXPO_PUBLIC_DEBUG_PANEL === "1",
   mockEnabled: isMockEnabled(runtimeIsDev, process.env.EXPO_PUBLIC_ENABLE_MOCK),
+  guidanceTriggerMode: guidanceTriggerModeFromEnv(
+    process.env.EXPO_PUBLIC_GUIDANCE_TRIGGER_MODE
+  ),
   sampleFps: clamp(numberFromEnv("EXPO_PUBLIC_SAMPLE_FPS", 0.75), 0.5, 1),
   visionTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_VISION_TIMEOUT_MS", 1000), 250, 5000),
   guidanceTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_GUIDANCE_TIMEOUT_MS", 19000), 500, 30000),

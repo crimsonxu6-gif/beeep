@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import argparse
 import base64
+import html
+import json
+import re
 import statistics
 import sys
 import time
 from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +41,7 @@ OPPOSITES = {
     ("adjust_distance", "farther"): ("adjust_distance", "closer"),
 }
 REVIEW_BOOLEAN_FIELDS = (
+    "output_usable",
     "composition_improved",
     "subject_preserved",
     "head_cut",
@@ -210,6 +215,7 @@ def _render(
     *,
     mode: str,
     review: dict[str, Any] | None,
+    artifact_root: Path | None = None,
 ) -> str:
     image_path = EVAL_ROOT / record["image_path"]
     with Image.open(image_path) as source:
@@ -263,7 +269,11 @@ def _render(
         y += 34
 
     folder = "composition_fixture" if mode == "fixture" else "shuttermuse_api"
-    destination = REPORT_ROOT / "artifacts" / folder / f"{record['eval_id']}.jpg"
+    destination = (
+        artifact_root / f"{record['eval_id']}.jpg"
+        if artifact_root is not None
+        else REPORT_ROOT / "artifacts" / folder / f"{record['eval_id']}.jpg"
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(destination, format="JPEG", quality=88)
     return destination.relative_to(REPORT_ROOT).as_posix()
@@ -281,8 +291,31 @@ def _error_code(output: dict) -> str | None:
 
 
 def _review_metrics(results: list[dict]) -> dict[str, Any]:
-    reviewed = [row for row in results if row["human_review"].get("bbox_quality") is not None]
-    scores = [float(row["human_review"]["bbox_quality"]) for row in reviewed]
+    reviewed = [
+        row
+        for row in results
+        if row["human_review"].get("output_usable") is not None
+        or row["human_review"].get("bbox_quality") is not None
+    ]
+    scores = [
+        float(row["human_review"]["bbox_quality"])
+        for row in reviewed
+        if row["human_review"].get("bbox_quality") is not None
+    ]
+    usable_values = [
+        row["human_review"].get("output_usable")
+        for row in results
+        if isinstance(row["human_review"].get("output_usable"), bool)
+    ]
+    product_usable = [
+        row
+        for row in results
+        if row["api_success"]
+        and row["bbox_parse_status"] == "success"
+        and row["human_review"].get("output_usable") is True
+        and isinstance(row["human_review"].get("bbox_quality"), int)
+        and row["human_review"]["bbox_quality"] >= 3
+    ]
     metrics: dict[str, Any] = {
         "reviewed_count": len(reviewed),
         "unreviewed_count": len(results) - len(reviewed),
@@ -292,8 +325,20 @@ def _review_metrics(results: list[dict]) -> dict[str, Any]:
         "bbox_quality_below_3_rate": round(sum(score < 3 for score in scores) / len(scores), 4)
         if scores
         else None,
+        "output_usable_count": sum(value is True for value in usable_values),
+        "output_usable_true_count": sum(value is True for value in usable_values),
+        "output_usable_reviewed_count": len(usable_values),
+        "output_usable_rate": (
+            round(sum(value is True for value in usable_values) / len(usable_values), 4)
+            if usable_values
+            else None
+        ),
+        "product_usable_count": len(product_usable),
+        "product_usable_rate": round(len(product_usable) / len(results), 4) if results else 0,
     }
     for field in REVIEW_BOOLEAN_FIELDS:
+        if field == "output_usable":
+            continue
         values = [row["human_review"].get(field) for row in reviewed]
         decided = [value for value in values if isinstance(value, bool)]
         metrics[f"{field}_count"] = len(decided)
@@ -310,6 +355,7 @@ def evaluate(
     reviews_path: Path | None = None,
     render_artifacts: bool = True,
     request_timeout_seconds: float = 60,
+    artifact_root: Path | None = None,
 ) -> tuple[list[dict], dict]:
     rows = read_jsonl(manifest)
     reviews = (
@@ -326,6 +372,10 @@ def evaluate(
     error_codes: Counter[str] = Counter()
     decisions: Counter[str] = Counter()
     coordinate_sources: Counter[str] = Counter()
+    parse_failures: Counter[str] = Counter()
+    parser_comparisons: Counter[str] = Counter()
+    generated_tokens: list[int] = []
+    reached_max_count = 0
 
     for frame_id, record in enumerate(rows, start=1):
         started = time.perf_counter()
@@ -353,6 +403,16 @@ def evaluate(
         composition = output.get("composition") or {}
         decision = metadata.get("decision") or composition.get("decision")
         coordinate_source = metadata.get("coordinate_source")
+        parse_failure_type = metadata.get("parse_failure_type")
+        parser_comparison = metadata.get("parser_comparison")
+        generated_token_count = metadata.get("generated_token_count")
+        if parse_failure_type:
+            parse_failures[str(parse_failure_type)] += 1
+        if parser_comparison:
+            parser_comparisons[str(parser_comparison)] += 1
+        if isinstance(generated_token_count, int):
+            generated_tokens.append(generated_token_count)
+        reached_max_count += int(bool(metadata.get("reached_max_new_tokens")))
         if decision:
             decisions[str(decision)] += 1
         if coordinate_source:
@@ -397,6 +457,9 @@ def evaluate(
         primary = actions[0] if actions else {}
         secondary = actions[1] if len(actions) > 1 else {}
         review = reviews[record["eval_id"]]
+        if mode == "api" and not successful:
+            review["output_usable"] = False
+            review["bbox_quality"] = None
         result = {
             **record,
             "evaluation_mode": "fixture_adapter" if mode == "fixture" else "live_api",
@@ -412,6 +475,14 @@ def evaluate(
                 if mode == "api"
                 else metadata.get("confidence", output.get("confidence"))
             ),
+            "raw_output": metadata.get("raw_output"),
+            "raw_output_length": metadata.get("raw_output_length"),
+            "generated_token_count": generated_token_count,
+            "reached_max_new_tokens": metadata.get("reached_max_new_tokens"),
+            "stopped_by_structure": metadata.get("stopped_by_structure"),
+            "parse_failure_type": parse_failure_type,
+            "parser_comparison": parser_comparison,
+            "generation_config": metadata.get("generation_config"),
             "bbox_parse_status": bbox_status,
             "preflight_state": preflight.get("state"),
             "preflight_detection_source": preflight.get("detection_source"),
@@ -438,7 +509,15 @@ def evaluate(
             },
         }
         result["overlay_path"] = (
-            _render(record, output, mode=mode, review=review) if render_artifacts else None
+            _render(
+                record,
+                output,
+                mode=mode,
+                review=review,
+                artifact_root=artifact_root,
+            )
+            if render_artifacts
+            else None
         )
         results.append(result)
 
@@ -461,7 +540,16 @@ def evaluate(
         "invalid_output_rate": round(invalid_count / total, 4) if total else 0,
         "decision_distribution": dict(decisions),
         "coordinate_source_distribution": dict(coordinate_sources),
+        "parse_failure_distribution": dict(parse_failures),
+        "parser_comparison_distribution": dict(parser_comparisons),
         "error_distribution": dict(error_codes),
+        "generated_token_mean": (
+            round(statistics.mean(generated_tokens), 3) if generated_tokens else None
+        ),
+        "generated_token_p50": percentile(generated_tokens, 0.50),
+        "generated_token_p95": percentile(generated_tokens, 0.95),
+        "reached_max_new_tokens_count": reached_max_count,
+        "output_truncated_count": parse_failures["OUTPUT_TRUNCATED"],
         "contradictory_actions": contradictory,
         "guidance_p50_ms": percentile(guidance_latencies, 0.50),
         "guidance_p95_ms": percentile(guidance_latencies, 0.95),
@@ -527,12 +615,79 @@ def evaluate(
     return results, summary
 
 
+def _safe_run_id(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", value):
+        raise ValueError("run id must contain only letters, numbers, dot, underscore, or hyphen")
+    return value
+
+
+def prepare_run_root(report_root: Path, run_id: str) -> Path:
+    destination = report_root / "runs" / _safe_run_id(run_id)
+    if destination.exists():
+        raise FileExistsError(f"run id already exists: {run_id}")
+    destination.mkdir(parents=True)
+    return destination
+
+
+def _read_readiness(api_url: str, timeout_seconds: float) -> dict[str, Any]:
+    base_url = api_url.rsplit("/v1/analyze", 1)[0]
+    try:
+        response = httpx.get(f"{base_url}/ready", timeout=min(timeout_seconds, 10))
+        return response.json()
+    except (httpx.HTTPError, ValueError):
+        return {"status": "unavailable"}
+
+
+def _write_run_index(run_root: Path, results: list[dict], summary: dict) -> None:
+    rows = []
+    for row in results:
+        overlay = Path(row["overlay_path"]).relative_to(run_root.relative_to(REPORT_ROOT))
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(row['eval_id'])}</td>"
+            f"<td>{html.escape(row['scenario'])}</td>"
+            f"<td>{html.escape(str(row.get('raw_model_decision') or '-'))}</td>"
+            f"<td>{html.escape(str(row.get('parse_failure_type') or '-'))}</td>"
+            f"<td>{html.escape(str(row.get('generated_token_count') or '-'))}</td>"
+            f'<td><a href="{html.escape(overlay.as_posix())}">overlay</a></td>'
+            "</tr>"
+        )
+    document = f"""<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>{html.escape(summary['run_id'])}</title>
+<style>body{{font:14px system-ui;margin:28px;color:#17201e}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #d6ddda;padding:8px;text-align:left}}th{{background:#eef3f1}}</style></head>
+<body><h1>{html.escape(summary['run_id'])}</h1><pre>{html.escape(json.dumps(summary, ensure_ascii=False, indent=2))}</pre>
+<table><thead><tr><th>ID</th><th>场景</th><th>Decision</th><th>Parse failure</th><th>Tokens</th><th>可视化</th></tr></thead>
+<tbody>{''.join(rows)}</tbody></table></body></html>"""
+    (run_root / "index.html").write_text(document, encoding="utf-8")
+
+
+def _raw_output_rows(results: list[dict]) -> list[dict[str, Any]]:
+    return [
+        {
+            "eval_id": row["eval_id"],
+            "request_id": row.get("request_id"),
+            "frame_id": row.get("frame_id"),
+            "raw_output": row.get("raw_output"),
+            "raw_output_length": row.get("raw_output_length"),
+            "generated_token_count": row.get("generated_token_count"),
+            "reached_max_new_tokens": row.get("reached_max_new_tokens"),
+            "parse_failure_type": row.get("parse_failure_type"),
+            "parser_comparison": row.get("parser_comparison"),
+        }
+        for row in results
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate fixture or live ShutterMuse composition output.")
     parser.add_argument("--manifest", type=Path, default=MANIFEST_ROOT / "composition.jsonl")
     parser.add_argument("--mode", choices=("fixture", "api"), default="fixture")
     parser.add_argument("--api-url")
     parser.add_argument("--request-timeout", type=float, default=60)
+    parser.add_argument("--run-id")
+    parser.add_argument("--gpu", default="unknown")
+    parser.add_argument("--precision", default="unknown")
+    parser.add_argument("--cpu-offload", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument(
         "--reviews",
         type=Path,
@@ -541,12 +696,26 @@ def main() -> None:
     args = parser.parse_args()
     if args.mode == "api" and not args.api_url:
         parser.error("--api-url is required in api mode")
+    run_id = None
+    run_root = None
+    readiness: dict[str, Any] = {}
+    if args.mode == "api":
+        run_id = _safe_run_id(
+            args.run_id or f"api_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
+        )
+        try:
+            run_root = prepare_run_root(REPORT_ROOT, run_id)
+        except FileExistsError as exc:
+            parser.error(str(exc))
+        readiness = _read_readiness(args.api_url, args.request_timeout)
+
     results, summary = evaluate(
         args.manifest,
         mode=args.mode,
         api_url=args.api_url,
         reviews_path=args.reviews,
         request_timeout_seconds=args.request_timeout,
+        artifact_root=run_root / "artifacts" if run_root else None,
     )
     if args.mode == "fixture":
         write_jsonl(REPORT_ROOT / "data" / "composition_fixture_results.jsonl", results)
@@ -555,8 +724,27 @@ def main() -> None:
         write_jsonl(REPORT_ROOT / "data" / "composition_results.jsonl", results)
         write_json(REPORT_ROOT / "composition_summary.json", summary)
     else:
+        assert run_id is not None and run_root is not None
+        summary["run_id"] = run_id
+        run_config = {
+            "run_id": run_id,
+            "created_at": datetime.now(UTC).isoformat(),
+            "gpu": args.gpu,
+            "precision": args.precision,
+            "cpu_offload": args.cpu_offload,
+            "input_short_edge": readiness.get("input_short_edge"),
+            "prompt_mode": readiness.get("prompt_mode"),
+            "attention_implementation": readiness.get("attention_implementation"),
+            **(readiness.get("generation_config") or {}),
+        }
+        write_jsonl(run_root / "composition_api_results.jsonl", results)
+        write_json(run_root / "composition_api_summary.json", summary)
+        write_json(run_root / "run_config.json", run_config)
+        write_jsonl(run_root / "raw_outputs.jsonl", _raw_output_rows(results))
+        _write_run_index(run_root, results, summary)
         write_jsonl(REPORT_ROOT / "data" / "composition_api_results.jsonl", results)
         write_json(REPORT_ROOT / "composition_api_summary.json", summary)
+        write_jsonl(args.reviews, (row["human_review"] for row in results))
     print(
         f"composition_mode={args.mode} total={summary['total']} "
         f"success={summary['api_success_count']} failed={summary['api_failure_count']} "

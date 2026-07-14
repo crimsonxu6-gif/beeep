@@ -86,17 +86,19 @@ export function GuidanceOverlay({
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <RuleOfThirdsGrid width={overlaySize.width} height={overlaySize.height} />
-      <CompositionBoxOverlay guidance={guidance} size={overlaySize} />
-      <PoseSkeletonOverlay guidance={guidance} size={overlaySize} />
-      <OverlayArrows guidance={guidance} variant={visualVariant} />
-      {instructions.primary ? (
-        <InstructionText
-          primary={instructions.primary}
-          secondary={instructions.secondary}
-          latencyMs={latencyMs}
-          variant={visualVariant}
-        />
-      ) : null}
+      <View style={[styles.guidanceLayer, processing && guidance ? styles.updating : null]}>
+        <CompositionBoxOverlay guidance={guidance} size={overlaySize} />
+        <PoseSkeletonOverlay guidance={guidance} size={overlaySize} />
+        <OverlayArrows guidance={guidance} variant={visualVariant} />
+        {instructions.primary ? (
+          <InstructionText
+            primary={instructions.primary}
+            secondary={instructions.secondary}
+            latencyMs={latencyMs}
+            variant={visualVariant}
+          />
+        ) : null}
+      </View>
       {modelStatus ? (
         <ModelStatusMessage status={modelStatus} hasGuidance={Boolean(instructions.primary)} />
       ) : null}
@@ -113,3 +115,16 @@ export function GuidanceOverlay({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  guidanceLayer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0
+  },
+  updating: {
+    opacity: 0.46
+  }
+});

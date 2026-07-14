@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import base64
+import importlib.util
+import json
 import logging
 import re
 import threading
 import time
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -17,6 +20,65 @@ from prompt import build_photographer_prompt
 from schemas import PhotographerRequest
 
 logger = logging.getLogger("shuttermuse")
+
+
+@dataclass(frozen=True)
+class GenerationResult:
+    raw_output: str
+    generated_token_count: int
+    reached_max_new_tokens: bool
+    stopped_by_structure: bool
+
+
+@dataclass(frozen=True)
+class InferenceResult:
+    parsed: ParsedComposition
+    generation: GenerationResult
+    inference_ms: int
+    parser_comparison: str
+
+
+def _complete_json_object(text: str) -> bool:
+    start = text.find("{")
+    if start < 0:
+        return False
+    try:
+        _, end = json.JSONDecoder().raw_decode(text[start:])
+    except json.JSONDecodeError:
+        return False
+    return not text[start + end :].strip()
+
+
+def is_structured_output_complete(text: str, prompt_mode: str) -> bool:
+    if prompt_mode == "beeep_json":
+        return _complete_json_object(text)
+    # Released checkpoints occasionally answer the official prompt with their
+    # training JSON envelope. Either complete representation is safe to stop on.
+    has_coordinate_pairs = bool(
+        re.search(
+            r"\(\s*[-+]?\d*\.?\d+\s*,\s*[-+]?\d*\.?\d+\s*\)\s*,\s*"
+            r"\(\s*[-+]?\d*\.?\d+\s*,\s*[-+]?\d*\.?\d+\s*\)",
+            text,
+        )
+    )
+    return has_coordinate_pairs or _complete_json_object(text)
+
+
+class StructuredOutputStoppingCriteria:
+    def __init__(self, processor: Any, input_length: int, prompt_mode: str) -> None:
+        self.processor = processor
+        self.input_length = input_length
+        self.prompt_mode = prompt_mode
+        self.triggered = False
+
+    def __call__(self, input_ids: Any, _scores: Any, **_kwargs: Any) -> bool:
+        generated = input_ids[0][self.input_length :]
+        if hasattr(self.processor, "decode"):
+            text = self.processor.decode(generated, skip_special_tokens=True)
+        else:
+            text = self.processor.batch_decode([generated], skip_special_tokens=True)[0]
+        self.triggered = is_structured_output_complete(text, self.prompt_mode)
+        return self.triggered
 
 
 class ModelServiceError(RuntimeError):
@@ -37,6 +99,7 @@ class ShutterMuseEngine:
         self.load_count = 0
         self.inference_count = 0
         self._state_lock = threading.Lock()
+        self._official_parser: Any | None = None
 
     def mark_loading(self) -> None:
         with self._state_lock:
@@ -61,7 +124,7 @@ class ShutterMuseEngine:
             self._record_failure(code, str(exc))
             raise ModelServiceError(code, str(exc)) from exc
 
-    def infer(self, request: PhotographerRequest) -> tuple[ParsedComposition, str, int]:
+    def infer(self, request: PhotographerRequest) -> InferenceResult:
         if self.state != "ready" or self.model is None or self.processor is None:
             raise ModelServiceError("MODEL_NOT_READY", "ShutterMuse model is not ready")
         image = self._decode_image(request.image_base64)
@@ -74,17 +137,24 @@ class ShutterMuseEngine:
         )
         started = time.perf_counter()
         try:
-            raw = self._generate(image, prompt)
+            generation = self._generate(image, prompt, request.prompt_mode)
         except Exception as exc:  # noqa: BLE001
             code = self._classify_exception(exc, "INFERENCE_FAILED")
             raise ModelServiceError(code, str(exc)) from exc
         inference_ms = int((time.perf_counter() - started) * 1000)
         parsed = parse_photographer_output(
-            raw,
+            generation.raw_output,
             image.width,
             image.height,
             prompt_mode=request.prompt_mode,
             official_coordinate_format=self.settings.official_coordinate_format,
+            reached_max_new_tokens=generation.reached_max_new_tokens,
+        )
+        parser_comparison = self._compare_with_official_parser(
+            generation.raw_output,
+            image.width,
+            image.height,
+            parsed.status == "success",
         )
         self.inference_count += 1
         if self.settings.debug_output:
@@ -97,7 +167,7 @@ class ShutterMuseEngine:
                 request.prompt_mode,
                 request.target_ratio,
                 request.composition_mode,
-                raw[:2000],
+                generation.raw_output[:2000],
                 parsed.bbox_norm,
                 parsed.coordinate_source,
                 parsed.decision,
@@ -106,12 +176,13 @@ class ShutterMuseEngine:
             )
         if parsed.status != "success":
             logger.warning(
-                "Output parsing failed request_id=%s frame_id=%s error_code=%s",
+                "Output parsing failed request_id=%s frame_id=%s error_code=%s failure_type=%s",
                 request.request_id,
                 request.frame_id,
                 parsed.error_code,
+                parsed.parse_failure_type,
             )
-        return parsed, raw, inference_ms
+        return InferenceResult(parsed, generation, inference_ms, parser_comparison)
 
     def readiness(self, executor_active: bool, executor_pending: int) -> dict[str, Any]:
         return {
@@ -128,6 +199,9 @@ class ShutterMuseEngine:
             "executor_pending": executor_pending,
             "prompt_mode": self.settings.prompt_mode,
             "official_coordinate_format": self.settings.official_coordinate_format,
+            "attention_implementation": self.settings.attention_implementation,
+            "input_short_edge": self.settings.input_short_edge,
+            "generation_config": self.generation_config(),
             "error_code": self.error_code,
             "error_message": self.error_message,
         }
@@ -142,6 +216,25 @@ class ShutterMuseEngine:
             raise ModelServiceError(
                 "INVALID_CONFIGURATION",
                 "SHUTTERMUSE_OFFICIAL_COORDINATES must be norm1000 or pixels",
+            )
+        if self.settings.attention_implementation not in {
+            "default",
+            "sdpa",
+            "flash_attention_2",
+        }:
+            raise ModelServiceError(
+                "INVALID_CONFIGURATION",
+                "SHUTTERMUSE_ATTENTION_IMPLEMENTATION must be default, sdpa, or flash_attention_2",
+            )
+        if not 1 <= self.settings.max_new_tokens <= 512:
+            raise ModelServiceError(
+                "INVALID_CONFIGURATION",
+                "SHUTTERMUSE_MAX_NEW_TOKENS must be between 1 and 512",
+            )
+        if not 1 <= self.settings.raw_output_max_chars <= 20_000:
+            raise ModelServiceError(
+                "INVALID_CONFIGURATION",
+                "SHUTTERMUSE_RAW_OUTPUT_MAX_CHARS must be between 1 and 20000",
             )
         if self.settings.generation_max_time_ms >= self.settings.inference_timeout_ms:
             raise ModelServiceError(
@@ -198,6 +291,7 @@ class ShutterMuseEngine:
                 "torch_dtype": "auto",
                 "device_map": self.settings.device_map,
                 "trust_remote_code": self.settings.trust_remote_code,
+                **self._attention_model_kwargs(),
             }
             if self.settings.load_in_4bit:
                 from transformers import BitsAndBytesConfig
@@ -270,15 +364,16 @@ class ShutterMuseEngine:
                 "3:4",
                 "auto",
             )
-            raw = self._generate(image, prompt)
+            generation = self._generate(image, prompt, self.settings.prompt_mode)
             if self.settings.debug_output:
-                logger.info("warmup_raw_output=%r", raw[:2000])
+                logger.info("warmup_raw_output=%r", generation.raw_output[:2000])
             parsed = parse_photographer_output(
-                raw,
+                generation.raw_output,
                 image.width,
                 image.height,
                 prompt_mode=self.settings.prompt_mode,
                 official_coordinate_format=self.settings.official_coordinate_format,
+                reached_max_new_tokens=generation.reached_max_new_tokens,
             )
             if parsed.status != "success":
                 raise ModelServiceError("WARMUP_PARSE_FAILED", "Warmup output could not be parsed")
@@ -290,7 +385,7 @@ class ShutterMuseEngine:
             code = self._classify_exception(exc, "WARMUP_FAILED")
             raise ModelServiceError(code, str(exc)) from exc
 
-    def _generate(self, image: Image.Image, prompt: str) -> str:
+    def _generate(self, image: Image.Image, prompt: str, prompt_mode: str) -> GenerationResult:
         import torch
         from qwen_vl_utils import process_vision_info
 
@@ -321,20 +416,77 @@ class ShutterMuseEngine:
             padding=True,
             return_tensors="pt",
         ).to(self.settings.device)
+        input_length = int(inputs.input_ids.shape[-1])
+        stopping_criteria = StructuredOutputStoppingCriteria(
+            self.processor,
+            input_length,
+            prompt_mode,
+        )
         with torch.inference_mode():
             generated = self.model.generate(
                 **inputs,
                 max_new_tokens=self.settings.max_new_tokens,
                 max_time=self.settings.generation_max_time_ms / 1000,
+                do_sample=False,
+                num_beams=1,
+                stopping_criteria=[stopping_criteria],
             )
         trimmed = [
             output[len(input_ids) :] for input_ids, output in zip(inputs.input_ids, generated, strict=True)
         ]
-        return self.processor.batch_decode(
+        raw_output = self.processor.batch_decode(
             trimmed,
             skip_special_tokens=True,
             clean_up_tokenization_spaces=False,
         )[0]
+        token_count = int(trimmed[0].shape[-1])
+        return GenerationResult(
+            raw_output=raw_output,
+            generated_token_count=token_count,
+            reached_max_new_tokens=token_count >= self.settings.max_new_tokens,
+            stopped_by_structure=stopping_criteria.triggered,
+        )
+
+    def generation_config(self) -> dict[str, Any]:
+        return {
+            "do_sample": False,
+            "num_beams": 1,
+            "max_new_tokens": self.settings.max_new_tokens,
+            "attention_implementation": self.settings.attention_implementation,
+        }
+
+    def _attention_model_kwargs(self) -> dict[str, str]:
+        if self.settings.attention_implementation == "default":
+            return {}
+        return {"attn_implementation": self.settings.attention_implementation}
+
+    def _compare_with_official_parser(
+        self,
+        raw: str,
+        image_width: int,
+        image_height: int,
+        beeep_success: bool,
+    ) -> str:
+        try:
+            if self._official_parser is None:
+                path = self.settings.repository() / "evaluation" / "photographer-side" / "utils.py"
+                spec = importlib.util.spec_from_file_location("shuttermuse_official_utils", path)
+                if spec is None or spec.loader is None:
+                    return "official_unavailable"
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                self._official_parser = module.parse_qwen_bbox
+            official_success = self._official_parser(raw, image_width, image_height) is not None
+        except Exception:  # noqa: BLE001
+            logger.warning("Official parser comparison unavailable", exc_info=True)
+            return "official_unavailable"
+        if beeep_success and official_success:
+            return "both_success"
+        if beeep_success:
+            return "beeep_only_success"
+        if official_success:
+            return "official_only_success"
+        return "both_failed"
 
     def _warmup_image_path(self) -> Path:
         if self.settings.warmup_image:

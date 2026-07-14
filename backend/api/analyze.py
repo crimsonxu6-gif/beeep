@@ -190,6 +190,7 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         if guidance_ms is not None:
             error_timing["guidance_ms"] = guidance_ms
         exc.context = {
+            **exc.context,
             "subject_preflight": (
                 preflight.model_dump(mode="json", exclude_none=True) if preflight else None
             ),

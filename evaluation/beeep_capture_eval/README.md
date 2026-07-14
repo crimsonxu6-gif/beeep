@@ -47,8 +47,31 @@ ShutterMuse model score. To evaluate the real model, start a Beeep backend with
 .\.venv\Scripts\python.exe evaluation\beeep_capture_eval\scripts\run_composition_eval.py `
   --mode api `
   --api-url http://127.0.0.1:8000/v1/analyze `
-  --request-timeout 180
+  --request-timeout 180 `
+  --run-id 4060_4bit_offload_768_sdpa_96_run01 `
+  --gpu "RTX 4060 Laptop" `
+  --precision 4bit_nf4 `
+  --cpu-offload
 ```
+
+Run IDs are immutable and write to `reports/runs/<run-id>/`. Each run contains
+`composition_api_results.jsonl`, `composition_api_summary.json`, `run_config.json`,
+`raw_outputs.jsonl`, `index.html`, and local overlay artifacts. The runner also refreshes
+the legacy latest files for convenience. Enable `SHUTTERMUSE_EVAL_CAPTURE_RAW_OUTPUT=1`
+on the model service to populate raw-output diagnostics; production keeps it disabled.
+
+Greedy repeatability is measured separately on five representative images:
+
+```powershell
+.\.venv\Scripts\python.exe evaluation\beeep_capture_eval\scripts\run_repeatability_eval.py `
+  --api-url http://127.0.0.1:8000/v1/analyze `
+  --request-timeout 180 `
+  --run-id 4060_4bit_offload_768_sdpa_96_repeat01
+```
+
+The report records exact raw-output matches, parse counts, decisions, bbox means and standard
+deviations, placeholder/format changes, and latency. It marks a configuration
+`MODEL_REPEATABILITY_FAILED` instead of hiding unstable output.
 
 The modes write separate artifacts:
 
@@ -59,9 +82,12 @@ The modes write separate artifacts:
 - human review: `manifests/composition_reviews.jsonl`.
 
 The API runner preserves existing review values, records errors per image without stopping the batch,
-and saves model prompt mode, coordinate source, decision, normalized bbox, confidence, preflight
-signal, actions, and timing. Fill `bbox_quality` with an integer from 1 to 5 and the review booleans
-with `true` or `false`; rerunning the API evaluation reloads those values into the report.
+and saves model prompt mode, coordinate source, decision, normalized bbox, confidence, raw-output
+diagnostics, preflight signal, actions, and timing. Set `output_usable=false` for format failures and
+leave `bbox_quality=null`; use `output_usable=true` plus a 1-5 quality score only for legal boxes.
+Rerunning the API evaluation reloads review values. Reports show format usability, average quality
+among successful boxes, and product usability separately. Product usability requires API success,
+a legal bbox, `output_usable=true`, and `bbox_quality >= 3`.
 
 The combined HTML report is `reports/index.html`; the machine-readable summary is
 `reports/latest.json`. It always separates preflight, deterministic fixture, and live model results.

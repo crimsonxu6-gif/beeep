@@ -16,6 +16,7 @@ import { CompositionMode } from "@/types/guidance";
 import { useCaptureController } from "./useCaptureController";
 import { PhotoPreviewScreen } from "@/screens/PhotoPreviewScreen";
 import { isAutomaticAnalysisEnabled } from "./analysisState";
+import { canRequestManualAnalysis } from "./analysisState";
 
 export function AppShell() {
   const cameraRef = useRef<CameraView | null>(null);
@@ -23,11 +24,27 @@ export function AppShell() {
   const [permission, requestPermission] = useCameraPermissions();
   const [overlaySize, setOverlaySize] = useState<OverlaySize>({ width: 0, height: 0 });
   const [compositionMode, setCompositionMode] = useState<CompositionMode>("auto");
-  const { stableGuidance, visionFeatures, debugState, processing, modelStatus, handleFrame, reset } =
-    useGuidanceController(compositionMode);
+  const [manualCapturePending, setManualCapturePending] = useState(false);
+  const {
+    stableGuidance,
+    visionFeatures,
+    debugState,
+    processing,
+    modelStatus,
+    handleFrame,
+    beginAnalysis,
+    cancelAnalysis,
+    reset
+  } = useGuidanceController(compositionMode);
   const capture = useCaptureController(cameraRef);
 
-  const cameraActive = isAutomaticAnalysisEnabled(route, Boolean(permission?.granted), processing, capture.capturing);
+  const cameraActive = isAutomaticAnalysisEnabled(
+    route,
+    Boolean(permission?.granted),
+    processing,
+    capture.capturing,
+    appConfig.guidanceTriggerMode
+  );
 
   useEffect(() => {
     if (capture.photo) setRoute("photoPreview");
@@ -37,7 +54,7 @@ export function AppShell() {
     if (route !== "camera") reset();
   }, [reset, route]);
 
-  useCameraFrameSampler({
+  const frameSampler = useCameraFrameSampler({
     cameraRef,
     enabled: cameraActive,
     fps: appConfig.sampleFps,
@@ -46,6 +63,20 @@ export function AppShell() {
       console.warn(cameraError.message);
     }
   });
+
+  const handleAnalyze = async () => {
+    if (!canRequestManualAnalysis(
+      appConfig.guidanceTriggerMode,
+      processing,
+      manualCapturePending,
+      capture.capturing
+    )) return;
+    setManualCapturePending(true);
+    beginAnalysis();
+    const submitted = await frameSampler.captureNow();
+    setManualCapturePending(false);
+    if (!submitted) cancelAnalysis();
+  };
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -89,6 +120,9 @@ export function AppShell() {
           onCapture={() => { reset(); void capture.capture(); }}
           onOpenGallery={() => { reset(); void capture.pick(); }}
           capturing={capture.capturing}
+          analyzing={processing || manualCapturePending}
+          triggerMode={appConfig.guidanceTriggerMode}
+          onAnalyze={() => { void handleAnalyze(); }}
           compositionMode={compositionMode}
           onCompositionModeChange={setCompositionMode}
           debugState={debugState}

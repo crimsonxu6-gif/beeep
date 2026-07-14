@@ -111,6 +111,13 @@ Live ShutterMuse quality evaluation uses the same 20 composition images but writ
 API results, bbox overlays, and a persistent human review manifest. The deterministic fixture
 report remains separate and must not be interpreted as model quality.
 
+The mobile app defaults to `EXPO_PUBLIC_GUIDANCE_TRIGGER_MODE=manual`: the user taps
+"分析构图", one frame is submitted, and the button remains disabled until that request
+finishes. `stable_auto` keeps the configuration boundary for a later stability trigger;
+`continuous` preserves the previous sampler for development only. During a manual request
+the UI shows staged status text after two seconds and may retain an unexpired previous
+suggestion at reduced opacity. No failed model request is retried automatically.
+
 Use `GUIDANCE_ENGINE=rules` to run without the GPU service. Use
 `GUIDANCE_ENGINE=shuttermuse` only after `http://127.0.0.1:8100/ready` reports ready.
 
@@ -132,6 +139,7 @@ See [.env.example](./.env.example). Important app flags:
 - `EXPO_PUBLIC_ANALYZE_API_URL`: unified backend endpoint.
 - `EXPO_PUBLIC_ENABLE_MOCK`: development-only explicit mock switch.
 - `EXPO_PUBLIC_DEBUG_PANEL`: shows request/frame IDs, stale drops, timing, engine and mode.
+- `EXPO_PUBLIC_GUIDANCE_TRIGGER_MODE`: `manual` (default), `stable_auto`, or development-only `continuous`.
 - `EXPO_PUBLIC_SAMPLE_FPS`: clamped to `0.5-1` while sampling uses `takePictureAsync`.
 - `EXPO_PUBLIC_VISION_TIMEOUT_MS` / `EXPO_PUBLIC_GUIDANCE_TIMEOUT_MS`: separate status budgets.
 
@@ -154,6 +162,7 @@ cd ..\model-service
 - ShutterMuse weights are not included in this repository; use the official merged Hugging Face checkpoint.
 - The released model is about 9B BF16 parameters. This workstation completed a 4-bit
   smoke test with CPU offload, but full BF16 quality and latency still require a larger GPU.
+  The current 8 GB laptop results are research data, not a real-time or production benchmark.
 - Subject-side ShutterMuse inference still needs to be connected to the strict COCO-17 adapter.
 - The upstream repository currently has no finalized code/model license. Commercial use remains blocked pending explicit terms.
 - MediaPipe currently runs on the backend; a later mobile-native visual layer will reduce latency and traffic.

@@ -37,7 +37,12 @@ def verify_api_key(x_api_key: str | None = Header(default=None)) -> None:
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Invalid API key"})
 
 
-@app.post("/v1/photographer/analyze", response_model=PhotographerResponse, dependencies=[])
+@app.post(
+    "/v1/photographer/analyze",
+    response_model=PhotographerResponse,
+    response_model_exclude_none=True,
+    dependencies=[],
+)
 def photographer_analyze(request: PhotographerRequest, x_api_key: str | None = Header(default=None)):
     verify_api_key(x_api_key)
     if engine.state != "ready":
@@ -52,7 +57,7 @@ def photographer_analyze(request: PhotographerRequest, x_api_key: str | None = H
         )
     future = executor.submit(lambda: engine.infer(request))
     try:
-        parsed, _, inference_ms = future.result(timeout=settings.inference_timeout_ms / 1000)
+        result = future.result(timeout=settings.inference_timeout_ms / 1000)
     except ModelRequestSuperseded as exc:
         raise HTTPException(
             status_code=429,
@@ -87,14 +92,28 @@ def photographer_analyze(request: PhotographerRequest, x_api_key: str | None = H
     return PhotographerResponse(
         request_id=request.request_id,
         frame_id=request.frame_id,
-        status=parsed.status,
-        decision=parsed.decision,
-        bbox_norm=parsed.bbox_norm,
-        confidence=parsed.confidence,
-        error_code=parsed.error_code,
-        inference_ms=inference_ms,
+        status=result.parsed.status,
+        decision=result.parsed.decision,
+        bbox_norm=result.parsed.bbox_norm,
+        confidence=result.parsed.confidence,
+        error_code=result.parsed.error_code,
+        inference_ms=result.inference_ms,
         prompt_mode=request.prompt_mode,
-        coordinate_source=parsed.coordinate_source,
+        coordinate_source=result.parsed.coordinate_source,
+        raw_output=(
+            result.generation.raw_output[: min(settings.raw_output_max_chars, 4000)]
+            if settings.eval_capture_raw_output
+            else None
+        ),
+        raw_output_length=(
+            len(result.generation.raw_output) if settings.eval_capture_raw_output else None
+        ),
+        generated_token_count=result.generation.generated_token_count,
+        reached_max_new_tokens=result.generation.reached_max_new_tokens,
+        stopped_by_structure=result.generation.stopped_by_structure,
+        parse_failure_type=result.parsed.parse_failure_type,
+        parser_comparison=result.parser_comparison,
+        generation_config=engine.generation_config(),
     )
 
 

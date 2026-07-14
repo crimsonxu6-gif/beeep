@@ -45,3 +45,17 @@ def test_cuda_oom_is_classified() -> None:
         ShutterMuseEngine._classify_exception(RuntimeError("CUDA out of memory"), "FAILED")
         == "CUDA_OUT_OF_MEMORY"
     )
+
+
+def test_invalid_attention_configuration_is_rejected() -> None:
+    engine = ShutterMuseEngine(
+        ModelSettings(
+            repo_path="repo",
+            model_path="model",
+            attention_implementation="invalid",
+            autoload=False,
+        )
+    )
+    with pytest.raises(ModelServiceError) as error:
+        engine._validate_configuration()
+    assert error.value.code == "INVALID_CONFIGURATION"

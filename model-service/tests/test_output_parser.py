@@ -22,7 +22,7 @@ def test_supports_official_norm1000_contract() -> None:
     )
     assert parsed.status == "success"
     assert parsed.bbox_norm == (0.1, 0.12, 0.9, 0.88)
-    assert parsed.coordinate_source == "official_1000"
+    assert parsed.coordinate_source == "official_1000_pairs"
 
 
 def test_supports_official_trained_instance_info_contract() -> None:
@@ -36,7 +36,7 @@ def test_supports_official_trained_instance_info_contract() -> None:
     )
     assert parsed.status == "success"
     assert parsed.bbox_norm == (0.12, 0.08, 0.88, 0.92)
-    assert parsed.coordinate_source == "official_1000"
+    assert parsed.coordinate_source == "official_1000_composition_xy"
 
 
 def test_official_pixel_contract_does_not_guess_from_value_size() -> None:
@@ -49,7 +49,7 @@ def test_official_pixel_contract_does_not_guess_from_value_size() -> None:
     )
     assert parsed.status == "success"
     assert parsed.bbox_norm == (100 / 768, 80 / 1024, 700 / 768, 950 / 1024)
-    assert parsed.coordinate_source == "official_pixels"
+    assert parsed.coordinate_source == "official_pixels_pairs"
 
 
 def test_explicit_pixel_json_is_parsed_as_pixels() -> None:
@@ -102,3 +102,86 @@ def test_reject_can_have_no_bbox() -> None:
     assert parsed.status == "success"
     assert parsed.decision == "reject"
     assert parsed.bbox_norm is None
+
+
+def test_supports_official_four_number_list() -> None:
+    parsed = parse_photographer_output(
+        "[100,120,900,880]",
+        1000,
+        1000,
+        prompt_mode="official",
+    )
+    assert parsed.status == "success"
+    assert parsed.coordinate_source == "official_1000_list"
+
+
+def test_supports_official_json_bbox() -> None:
+    parsed = parse_photographer_output(
+        '{"bbox":[100,120,900,880]}',
+        1000,
+        1000,
+        prompt_mode="official",
+    )
+    assert parsed.status == "success"
+    assert parsed.coordinate_source == "official_1000_json_bbox"
+
+
+def test_supports_official_composition_bbox() -> None:
+    parsed = parse_photographer_output(
+        '{"composition_bbox":[100,120,900,880]}',
+        1000,
+        1000,
+        prompt_mode="official",
+    )
+    assert parsed.status == "success"
+    assert parsed.coordinate_source == "official_1000_composition_bbox"
+
+
+def test_supports_official_composition_xy_array() -> None:
+    parsed = parse_photographer_output(
+        '{"composition_xy":[100,120,900,880]}',
+        1000,
+        1000,
+        prompt_mode="official",
+    )
+    assert parsed.status == "success"
+    assert parsed.coordinate_source == "official_1000_composition_xy"
+
+
+def test_classifies_placeholder_output() -> None:
+    parsed = parse_photographer_output("<bbox>", 1000, 1000, prompt_mode="official")
+    assert parsed.parse_failure_type == "PLACEHOLDER_OUTPUT"
+
+
+def test_classifies_empty_output() -> None:
+    parsed = parse_photographer_output("  ", 1000, 1000, prompt_mode="official")
+    assert parsed.parse_failure_type == "EMPTY_MODEL_OUTPUT"
+
+
+def test_classifies_reversed_geometry() -> None:
+    parsed = parse_photographer_output(
+        "(900,100),(100,800)", 1000, 1000, prompt_mode="official"
+    )
+    assert parsed.parse_failure_type == "INVALID_BBOX_GEOMETRY"
+
+
+def test_classifies_truncated_output() -> None:
+    parsed = parse_photographer_output(
+        '{"instance_info":[{"composition_xy":"(100,100)',
+        1000,
+        1000,
+        prompt_mode="official",
+    )
+    assert parsed.parse_failure_type == "OUTPUT_TRUNCATED"
+
+
+def test_does_not_extract_unrelated_numbers_from_long_text() -> None:
+    parsed = parse_photographer_output(
+        "2026 年有 12 个场景，评分 4 分，版本 3，未提供构图坐标。",
+        1000,
+        1000,
+        prompt_mode="official",
+    )
+    assert parsed.status == "low_confidence"
+    assert parsed.bbox_norm is None
+    assert parsed.parse_failure_type == "PARSER_UNSUPPORTED_FORMAT"

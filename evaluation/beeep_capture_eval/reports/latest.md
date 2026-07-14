@@ -44,20 +44,28 @@ This layer verifies deterministic bbox-to-action conversion only.
 ## 3. ShutterMuse API
 
 - Total: 20
+- Run ID: -
 - API success: 11 / 20 (55.0%)
 - Bbox parse: 11 / 20 (55.0%)
 - Invalid output: 9 / 20 (45.0%)
 - Decision distribution: {'keep': 4, 'refine': 7}
 - Coordinate sources: {'official_1000': 11}
+- Parse failures: {}
+- Parser comparison: {}
 - Errors: {'INVALID_MODEL_OUTPUT': 9}
-- Human-reviewed direction correct: -
-- Human-reviewed wrong direction: pending human review
-- Human-reviewed primary action helpful: -
-- Human-reviewed secondary action helpful: -
+- Generated tokens mean/P50/P95: None / None / None
+- Reached max tokens: 0
+- Output truncated: 0
+- Human-reviewed direction correct: 90.9%
+- Human-reviewed wrong direction: 1 / 11 (9.1%)
+- Human-reviewed primary action helpful: 72.7%
+- Human-reviewed secondary action helpful: 0.0%
 - Guidance P50/P95: 6455.0 / 8396.0 ms
 - Total P50/P95: 6465.0 / 8404.0 ms
-- Human review: 0 reviewed, 20 pending
-- Bbox quality mean/median: None / None
+- Human review: 20 reviewed, 0 pending
+- Bbox quality mean/median: 3.455 / 4.0
+- Output usable: 11 / 20 (55.0%)
+- Product usable: 8 / 20 (40.0%)
 
 ### API Samples
 
@@ -97,5 +105,5 @@ This layer verifies deterministic bbox-to-action conversion only.
 
 - AI-generated images provide boundary coverage and are not the only quality source.
 - Public and transformed images do not replace real sensor, motion, lens, or front-camera behavior.
-- Human review fields must be completed before interpreting live API composition quality.
+- Human review scores apply only to the archived model outputs that were actually inspected.
 - The 9 preflight and 6 composition scenarios above still require true-device validation.

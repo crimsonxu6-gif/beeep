@@ -1,4 +1,4 @@
-import { RefObject, useEffect, useRef } from "react";
+import { RefObject, useCallback, useEffect, useRef } from "react";
 import { CameraView } from "expo-camera";
 
 import { CapturedFrame } from "@/types/frame";
@@ -13,13 +13,17 @@ interface UseCameraFrameSamplerOptions {
   onError?: (error: Error) => void;
 }
 
+export interface CameraFrameSamplerControls {
+  captureNow: () => Promise<boolean>;
+}
+
 export function useCameraFrameSampler({
   cameraRef,
   enabled,
   fps,
   onFrame,
   onError
-}: UseCameraFrameSamplerOptions): void {
+}: UseCameraFrameSamplerOptions): CameraFrameSamplerControls {
   const frameIdRef = useRef(1);
   const controllerRef = useRef(new AnalysisFrameController());
   const samplerRef = useRef(new FrameSampler(fps));
@@ -36,6 +40,34 @@ export function useCameraFrameSampler({
     onErrorRef.current = onError;
   }, [onFrame, onError]);
 
+  const captureNow = useCallback(async (): Promise<boolean> => {
+    if (inFlightRef.current) {
+      return false;
+    }
+    const camera = cameraRef.current;
+    if (!camera) {
+      return false;
+    }
+    inFlightRef.current = true;
+    try {
+      const frame = await controllerRef.current.captureAnalysisFrame(
+        camera,
+        frameIdRef.current
+      );
+      if (!frame) {
+        return false;
+      }
+      frameIdRef.current += 1;
+      onFrameRef.current(frame);
+      return true;
+    } catch (error) {
+      onErrorRef.current?.(error instanceof Error ? error : new Error(String(error)));
+      return false;
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [cameraRef]);
+
   useEffect(() => {
     if (!enabled) {
       return undefined;
@@ -47,32 +79,13 @@ export function useCameraFrameSampler({
         return;
       }
 
-      const camera = cameraRef.current;
-      if (!camera) {
-        return;
-      }
-
-      inFlightRef.current = true;
-      void controllerRef.current
-        .captureAnalysisFrame(camera, frameIdRef.current)
-        .then((frame) => {
-          if (!frame) {
-            return;
-          }
-
-          frameIdRef.current += 1;
-          onFrameRef.current(frame);
-        })
-        .catch((error: unknown) => {
-          onErrorRef.current?.(error instanceof Error ? error : new Error(String(error)));
-        })
-        .finally(() => {
-          inFlightRef.current = false;
-        });
+      void captureNow();
     }, intervalMs);
 
     return () => {
       clearInterval(timer);
     };
-  }, [cameraRef, enabled, fps]);
+  }, [captureNow, enabled, fps]);
+
+  return { captureNow };
 }

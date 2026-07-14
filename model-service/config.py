@@ -26,6 +26,9 @@ class ModelSettings:
     ).strip().lower()
     max_new_tokens: int = int(os.getenv("SHUTTERMUSE_MAX_NEW_TOKENS", "96"))
     input_short_edge: int = int(os.getenv("SHUTTERMUSE_INPUT_SHORT_EDGE", "1024"))
+    attention_implementation: str = os.getenv(
+        "SHUTTERMUSE_ATTENTION_IMPLEMENTATION", "default"
+    ).strip().lower()
     generation_max_time_ms: int = int(os.getenv("SHUTTERMUSE_GENERATION_MAX_TIME_MS", "14000"))
     inference_timeout_ms: int = int(os.getenv("SHUTTERMUSE_INFERENCE_TIMEOUT_MS", "15000"))
     trust_remote_code: bool = _bool("SHUTTERMUSE_TRUST_REMOTE_CODE", False)
@@ -36,6 +39,8 @@ class ModelSettings:
     cpu_max_memory: str = os.getenv("SHUTTERMUSE_CPU_MAX_MEMORY", "8GiB").strip()
     offload_folder: str = os.getenv("SHUTTERMUSE_OFFLOAD_FOLDER", "").strip()
     debug_output: bool = _bool("SHUTTERMUSE_DEBUG_OUTPUT", False)
+    eval_capture_raw_output: bool = _bool("SHUTTERMUSE_EVAL_CAPTURE_RAW_OUTPUT", False)
+    raw_output_max_chars: int = int(os.getenv("SHUTTERMUSE_RAW_OUTPUT_MAX_CHARS", "4000"))
     autoload: bool = _bool("SHUTTERMUSE_AUTOLOAD", True)
     api_key: str = os.getenv("SHUTTERMUSE_SERVICE_API_KEY", "")
 

@@ -23,6 +23,13 @@ class PhotographerRequest(StrictModel):
     prompt_mode: Literal["official", "beeep_json"] = "official"
 
 
+class GenerationConfigMetadata(StrictModel):
+    do_sample: Literal[False] = False
+    num_beams: Literal[1] = 1
+    max_new_tokens: int = Field(ge=1, le=512)
+    attention_implementation: Literal["default", "sdpa", "flash_attention_2"]
+
+
 class PhotographerResponse(StrictModel):
     request_id: str
     frame_id: int
@@ -34,8 +41,34 @@ class PhotographerResponse(StrictModel):
     inference_ms: int = Field(ge=0)
     prompt_mode: Literal["official", "beeep_json"]
     coordinate_source: Literal[
-        "bbox_norm", "bbox_1000", "bbox_pixels", "official_1000", "official_pixels"
+        "bbox_norm",
+        "bbox_1000",
+        "bbox_pixels",
+        "official_1000_pairs",
+        "official_pixels_pairs",
+        "official_1000_list",
+        "official_pixels_list",
+        "official_1000_json_bbox",
+        "official_pixels_json_bbox",
+        "official_1000_composition_bbox",
+        "official_pixels_composition_bbox",
+        "official_1000_composition_xy",
+        "official_pixels_composition_xy",
     ] | None = None
+    raw_output: str | None = Field(default=None, max_length=4000)
+    raw_output_length: int | None = Field(default=None, ge=0)
+    generated_token_count: int = Field(ge=0)
+    reached_max_new_tokens: bool
+    stopped_by_structure: bool
+    parse_failure_type: str | None = None
+    parser_comparison: Literal[
+        "both_success",
+        "beeep_only_success",
+        "official_only_success",
+        "both_failed",
+        "official_unavailable",
+    ]
+    generation_config: GenerationConfigMetadata
 
     @model_validator(mode="after")
     def validate_bbox(self):
@@ -61,5 +94,8 @@ class ReadinessResponse(StrictModel):
     executor_pending: int
     prompt_mode: str
     official_coordinate_format: str
+    attention_implementation: str
+    input_short_edge: int
+    generation_config: GenerationConfigMetadata
     error_code: str | None = None
     error_message: str | None = None

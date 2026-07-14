@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from core.errors import ApiError
 from model.shuttermuse import ShutterMuseGuidanceEngine
 from schemas import (
     AnalyzeRequest,
@@ -116,6 +117,29 @@ def test_shuttermuse_service_preserves_model_evaluation_metadata(monkeypatch) ->
     assert output.model_metadata.decision == "refine"
     assert output.model_metadata.bbox_norm == (0.1, 0.1, 0.8, 0.9)
     assert output.model_metadata.inference_ms == 420
+
+
+def test_shuttermuse_failure_preserves_evaluation_diagnostics(monkeypatch) -> None:
+    model_output = ModelCompositionResult(
+        request_id="req_model",
+        frame_id=1,
+        status="low_confidence",
+        inference_ms=420,
+        prompt_mode="official",
+        error_code="INVALID_MODEL_OUTPUT",
+        raw_output="<bbox>",
+        raw_output_length=6,
+        generated_token_count=4,
+        parse_failure_type="PLACEHOLDER_OUTPUT",
+        parser_comparison="both_failed",
+    )
+    service = ShutterMuseGuidanceService()
+    monkeypatch.setattr(service.client, "infer", lambda _request: model_output)
+    with pytest.raises(ApiError) as error:
+        service.analyze(request(), None)
+    metadata = error.value.context["model_metadata"]
+    assert metadata["raw_output"] == "<bbox>"
+    assert metadata["parse_failure_type"] == "PLACEHOLDER_OUTPUT"
 
 
 def test_invalid_model_output_never_fabricates_bbox() -> None:

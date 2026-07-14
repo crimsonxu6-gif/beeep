@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 EVAL_ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +13,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 
 import render_report  # noqa: E402
 import run_composition_eval as composition_eval  # noqa: E402
+import run_repeatability_eval as repeatability_eval  # noqa: E402
 from common import read_jsonl, write_json, write_jsonl  # noqa: E402
 
 
@@ -204,6 +206,7 @@ def test_human_review_fields_round_trip(tmp_path: Path) -> None:
     review.update(
         {
             "bbox_quality": 4,
+            "output_usable": True,
             "composition_improved": True,
             "subject_preserved": True,
             "review_notes": "good crop",
@@ -212,6 +215,7 @@ def test_human_review_fields_round_trip(tmp_path: Path) -> None:
     write_jsonl(reviews_path, [review])
     loaded = composition_eval.ensure_reviews(rows, reviews_path)["api_001"]
     assert loaded["bbox_quality"] == 4
+    assert loaded["output_usable"] is True
     assert loaded["composition_improved"] is True
     assert loaded["review_notes"] == "good crop"
 
@@ -247,3 +251,78 @@ def test_report_separates_fixture_and_live_api(tmp_path: Path, monkeypatch) -> N
     assert "## 2. GuidanceAdapter Fixture" in markdown
     assert "## 3. ShutterMuse API" in markdown
     assert "Fixture output is not evidence" in markdown
+
+
+def test_run_ids_do_not_overwrite_existing_results(tmp_path: Path) -> None:
+    first = composition_eval.prepare_run_root(tmp_path, "run_a")
+    second = composition_eval.prepare_run_root(tmp_path, "run_b")
+    assert first != second
+    with pytest.raises(FileExistsError):
+        composition_eval.prepare_run_root(tmp_path, "run_a")
+
+
+def test_raw_output_rows_are_safe_and_complete() -> None:
+    rows = composition_eval._raw_output_rows(
+        [
+            {
+                "eval_id": "api_001",
+                "request_id": "req_1",
+                "frame_id": 1,
+                "raw_output": "<bbox>",
+                "raw_output_length": 6,
+                "generated_token_count": 4,
+                "reached_max_new_tokens": False,
+                "parse_failure_type": "PLACEHOLDER_OUTPUT",
+                "parser_comparison": "both_failed",
+            }
+        ]
+    )
+    assert rows[0]["raw_output"] == "<bbox>"
+    assert rows[0]["parse_failure_type"] == "PLACEHOLDER_OUTPUT"
+    assert "image" not in rows[0]
+
+
+def test_output_usable_and_product_usable_rates() -> None:
+    results = [
+        {
+            "api_success": True,
+            "bbox_parse_status": "success",
+            "human_review": {
+                **composition_eval.default_review("one"),
+                "output_usable": True,
+                "bbox_quality": 4,
+            },
+        },
+        {
+            "api_success": False,
+            "bbox_parse_status": "invalid",
+            "human_review": {
+                **composition_eval.default_review("two"),
+                "output_usable": False,
+            },
+        },
+    ]
+    metrics = composition_eval._review_metrics(results)
+    assert metrics["output_usable_rate"] == 0.5
+    assert metrics["output_usable_count"] == 1
+    assert metrics["output_usable_reviewed_count"] == 2
+    assert metrics["product_usable_count"] == 1
+    assert metrics["product_usable_rate"] == 0.5
+
+
+def test_repeatability_summary_detects_format_instability() -> None:
+    rows = [
+        {
+            "raw_output": "(100,100),(900,900)" if index < 8 else "<bbox>",
+            "decision": "refine" if index < 8 else None,
+            "bbox_norm": [0.1, 0.1, 0.9, 0.9] if index < 8 else None,
+            "coordinate_source": "official_1000_pairs" if index < 8 else None,
+            "parse_failure_type": None if index < 8 else "PLACEHOLDER_OUTPUT",
+            "inference_ms": 1000 + index,
+        }
+        for index in range(10)
+    ]
+    summary = repeatability_eval.summarize_image("api_001", rows)
+    assert summary["parse_success_count"] == 8
+    assert summary["placeholder_output_count"] == 2
+    assert summary["status"] == "MODEL_REPEATABILITY_FAILED"

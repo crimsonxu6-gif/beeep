@@ -21,27 +21,40 @@ class ShutterMuseGuidanceService:
 
     def analyze(self, request: AnalyzeRequest, vision_features: VisionFeatures | None) -> GuidanceOutput:
         model_result = self.client.infer(request)
+        metadata = ModelEvaluationMetadata(
+            prompt_mode=model_result.prompt_mode,
+            coordinate_source=model_result.coordinate_source,
+            decision=model_result.decision,
+            bbox_norm=model_result.bbox_norm,
+            confidence=model_result.confidence,
+            inference_ms=model_result.inference_ms,
+            raw_output=model_result.raw_output,
+            raw_output_length=model_result.raw_output_length,
+            generated_token_count=model_result.generated_token_count,
+            reached_max_new_tokens=model_result.reached_max_new_tokens,
+            stopped_by_structure=model_result.stopped_by_structure,
+            parse_failure_type=model_result.parse_failure_type,
+            parser_comparison=model_result.parser_comparison,
+            generation_config=model_result.generation_config,
+        )
         if model_result.status != "success":
-            raise ApiError(
+            error = ApiError(
                 502,
                 model_result.error_code or "INVALID_MODEL_OUTPUT",
                 "ShutterMuse returned a low-confidence result",
                 request.frame_id,
             )
+            error.context["model_metadata"] = metadata.model_dump(
+                mode="json", exclude_none=True
+            )
+            raise error
         output = self.guidance_adapter.from_model_composition(
             model_result,
             frame_id=request.frame_id,
         )
         output = output.model_copy(
             update={
-                "model_metadata": ModelEvaluationMetadata(
-                    prompt_mode=model_result.prompt_mode,
-                    coordinate_source=model_result.coordinate_source,
-                    decision=model_result.decision,
-                    bbox_norm=model_result.bbox_norm,
-                    confidence=model_result.confidence,
-                    inference_ms=model_result.inference_ms,
-                )
+                "model_metadata": metadata
             }
         )
         if settings.shuttermuse_debug_output:

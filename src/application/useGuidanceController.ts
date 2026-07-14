@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { appConfig } from "@/config";
 import { GuidanceDebugState, GuidancePipeline } from "@/ai_engine/guidancePipeline";
@@ -7,6 +7,7 @@ import { StabilityFilter } from "@/stability/stabilityFilter";
 import { CapturedFrame } from "@/types/frame";
 import { CompositionMode, ModelStatus, StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
+import { analysisWaitingStatus } from "./analysisState";
 
 interface GuidanceControllerState {
   stableGuidance: StableGuidance | null;
@@ -18,6 +19,8 @@ interface GuidanceControllerState {
 
 export function useGuidanceController(compositionMode: CompositionMode): GuidanceControllerState & {
   handleFrame: (frame: CapturedFrame) => void;
+  beginAnalysis: () => void;
+  cancelAnalysis: () => void;
   reset: () => void;
 } {
   const [stableGuidance, setStableGuidance] = useState<StableGuidance | null>(null);
@@ -36,6 +39,12 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
   });
   const [processing, setProcessing] = useState(false);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
+  const waitingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearWaitingTimer = useCallback(() => {
+    if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
+    waitingTimerRef.current = null;
+  }, []);
 
   const pipeline = useMemo(() => new GuidancePipeline({
     client: new ShutterMuseHttpClient({
@@ -43,7 +52,12 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
       timeoutMs: appConfig.guidanceTimeoutMs,
       mockEnabled: appConfig.mockEnabled
     }),
-    stabilityFilter: new StabilityFilter(appConfig.stability),
+    stabilityFilter: new StabilityFilter({
+      ...appConfig.stability,
+      consistentFrames: appConfig.guidanceTriggerMode === "manual"
+        ? 1
+        : appConfig.stability.consistentFrames
+    }),
     allowedFrameLag: appConfig.pipeline.allowedFrameLag,
     expiresMs: appConfig.stability.expiresMs
   }), []);
@@ -54,8 +68,12 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
       onStableGuidance: setStableGuidance,
       onDebugState: setDebugState,
       onProcessingChange: setProcessing,
-      onSuccess: () => setModelStatus(null),
+      onSuccess: () => {
+        clearWaitingTimer();
+        setModelStatus(null);
+      },
       onError: (pipelineError) => {
+        clearWaitingTimer();
         if (pipelineError instanceof GuidanceApiError) {
           setModelStatus(pipelineError.status);
           return;
@@ -69,22 +87,62 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
         });
       }
     });
-    return () => pipeline.dispose();
-  }, [pipeline]);
+    return () => {
+      clearWaitingTimer();
+      pipeline.dispose();
+    };
+  }, [clearWaitingTimer, pipeline]);
 
   useEffect(() => {
     pipeline.reset();
+    clearWaitingTimer();
     setModelStatus(null);
-  }, [compositionMode, pipeline]);
+  }, [clearWaitingTimer, compositionMode, pipeline]);
 
   const handleFrame = useCallback((frame: CapturedFrame) => {
     pipeline.acceptFrame(frame, compositionMode);
   }, [compositionMode, pipeline]);
 
+  const beginAnalysis = useCallback(() => {
+    clearWaitingTimer();
+    const initial = analysisWaitingStatus(0);
+    setModelStatus({
+      code: "ANALYZING_COMPOSITION",
+      ...initial,
+      retryable: false,
+      severity: "waiting"
+    });
+    waitingTimerRef.current = setTimeout(() => {
+      const delayed = analysisWaitingStatus(2000);
+      setModelStatus({
+        code: "ANALYZING_COMPOSITION",
+        ...delayed,
+        retryable: false,
+        severity: "waiting"
+      });
+    }, 2000);
+  }, [clearWaitingTimer]);
+
+  const cancelAnalysis = useCallback(() => {
+    clearWaitingTimer();
+    setModelStatus(null);
+  }, [clearWaitingTimer]);
+
   const reset = useCallback(() => {
     pipeline.reset();
+    clearWaitingTimer();
     setModelStatus(null);
-  }, [pipeline]);
+  }, [clearWaitingTimer, pipeline]);
 
-  return { stableGuidance, visionFeatures, debugState, processing, modelStatus, handleFrame, reset };
+  return {
+    stableGuidance,
+    visionFeatures,
+    debugState,
+    processing,
+    modelStatus,
+    handleFrame,
+    beginAnalysis,
+    cancelAnalysis,
+    reset
+  };
 }

@@ -16,6 +16,7 @@ import { VisionFeatures } from "@/types/vision";
 import { colors, radii, typography } from "@/theme/design";
 import { CompositionMode } from "@/types/guidance";
 import { GuidanceDebugState } from "@/ai_engine/guidancePipeline";
+import { GuidanceTriggerMode } from "@/config";
 
 interface CameraWorkspaceProps {
   cameraRef: RefObject<CameraView | null>;
@@ -32,6 +33,9 @@ interface CameraWorkspaceProps {
   onCapture: () => void;
   onOpenGallery: () => void;
   capturing: boolean;
+  analyzing: boolean;
+  triggerMode: GuidanceTriggerMode;
+  onAnalyze: () => void;
   compositionMode: CompositionMode;
   onCompositionModeChange: (mode: CompositionMode) => void;
   debugState: GuidanceDebugState;
@@ -52,6 +56,9 @@ export function CameraWorkspace({
   onCapture,
   onOpenGallery,
   capturing,
+  analyzing,
+  triggerMode,
+  onAnalyze,
   compositionMode,
   onCompositionModeChange,
   debugState
@@ -97,11 +104,13 @@ export function CameraWorkspace({
           <ChevronLeft size={22} strokeWidth={2.4} color={colors.white} />
         </Pressable>
         <View style={styles.topTitleWrap}>
-          <Text style={styles.topTitle}>实时构图</Text>
+          <Text style={styles.topTitle}>
+            {triggerMode === "manual" ? "构图分析" : "实时构图"}
+          </Text>
           <Text style={styles.topMeta}>
             {modelStatus
               ? modelStatus.severity === "waiting" ? "AI 准备中" : "AI 暂不可用"
-              : processing ? "分析中" : "Ready"}
+              : processing ? "分析中" : triggerMode === "manual" ? "待分析" : "Ready"}
           </Text>
         </View>
         <View style={styles.topSpacer} />
@@ -127,7 +136,20 @@ export function CameraWorkspace({
         <Pressable style={[styles.shutter, capturing && styles.shutterDisabled]} onPress={onCapture} disabled={capturing}>
           <View style={styles.shutterInner} />
         </Pressable>
-        <View style={styles.dockSpacer} />
+        {triggerMode === "manual" ? (
+          <Pressable
+            style={[styles.sideControl, analyzing && styles.controlDisabled]}
+            onPress={onAnalyze}
+            disabled={analyzing || capturing}
+          >
+            {analyzing ? (
+              <ActivityIndicator color={colors.white} size="small" />
+            ) : (
+              <Aperture size={22} strokeWidth={2.2} color={colors.white} />
+            )}
+            <Text style={styles.sideControlText}>{analyzing ? "分析中" : "分析构图"}</Text>
+          </Pressable>
+        ) : <View style={styles.dockSpacer} />}
       </View>
     </View>
   );
@@ -267,5 +289,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.round,
     backgroundColor: colors.white
   },
-  shutterDisabled: { opacity: 0.5 }
+  shutterDisabled: { opacity: 0.5 },
+  controlDisabled: { opacity: 0.48 }
 });

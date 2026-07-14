@@ -173,12 +173,34 @@ class GuidanceTiming(StrictModel):
 class ModelEvaluationMetadata(StrictModel):
     prompt_mode: Literal["official", "beeep_json"]
     coordinate_source: Literal[
-        "bbox_norm", "bbox_1000", "bbox_pixels", "official_1000", "official_pixels"
+        "bbox_norm",
+        "bbox_1000",
+        "bbox_pixels",
+        "official_1000",
+        "official_pixels",
+        "official_1000_pairs",
+        "official_pixels_pairs",
+        "official_1000_list",
+        "official_pixels_list",
+        "official_1000_json_bbox",
+        "official_pixels_json_bbox",
+        "official_1000_composition_bbox",
+        "official_pixels_composition_bbox",
+        "official_1000_composition_xy",
+        "official_pixels_composition_xy",
     ] | None = None
     decision: Literal["keep", "refine", "reject"] | None = None
     bbox_norm: tuple[float, float, float, float] | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
     inference_ms: int = Field(ge=0)
+    raw_output: str | None = Field(default=None, max_length=4000)
+    raw_output_length: int | None = Field(default=None, ge=0)
+    generated_token_count: int = Field(default=0, ge=0)
+    reached_max_new_tokens: bool = False
+    stopped_by_structure: bool = False
+    parse_failure_type: str | None = None
+    parser_comparison: str | None = None
+    generation_config: dict[str, object] | None = None
 
 
 class GuidanceOutput(StrictModel):
