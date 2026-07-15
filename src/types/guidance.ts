@@ -90,6 +90,16 @@ export interface GuidanceOutput {
     decision: "keep" | "refine" | "reject";
     bboxNorm: [number, number, number, number];
   };
+  coordinateContext?: {
+    imageWidth: number;
+    imageHeight: number;
+    previewWidth: number;
+    previewHeight: number;
+    cameraFacing: "front" | "back" | "unknown";
+    imageMirrored: boolean;
+    previewMirrored: boolean;
+    resizeMode: "cover";
+  };
   pose?: {
     keypoints: Array<{
       name: string;
@@ -125,6 +135,20 @@ export interface GuidanceOutput {
     visionMs: number;
     guidanceMs: number;
     totalMs: number;
+  };
+  clientTiming?: {
+    tapTimestamp?: number;
+    captureMs: number;
+    preprocessMs: number;
+    payloadBytes: number;
+    requestBodyBytes: number;
+    uploadStartedAt: number;
+    responseReceivedAt: number;
+    overlayRenderedAt?: number;
+    networkAndServerMs: number;
+    clientNetworkOverheadMs: number;
+    renderMs?: number;
+    tapToOverlayMs?: number;
   };
 }
 

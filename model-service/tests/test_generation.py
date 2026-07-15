@@ -8,7 +8,11 @@ import pytest
 from PIL import Image
 
 from config import ModelSettings
-from engine import ShutterMuseEngine, is_structured_output_complete
+from engine import (
+    ShutterMuseEngine,
+    is_structured_output_complete,
+    structured_output_stop_reason,
+)
 
 
 class FakeTokenRow(list):
@@ -105,7 +109,7 @@ def test_generation_is_explicitly_greedy_and_counts_tokens(monkeypatch) -> None:
         ("(100,100)", "official", False),
         ("(100,100),(900,900)", "official", True),
         ('{"bbox":[100,100,900,900]}', "official", True),
-        ('{"bbox":[100,100,900,900]', "official", False),
+        ('{"bbox":[100,100,900,900]', "official", True),
         ('{"decision":"keep"', "beeep_json", False),
         ('{"decision":"keep"}', "beeep_json", True),
         ("说明（人物）还没有坐标", "official", False),
@@ -113,6 +117,21 @@ def test_generation_is_explicitly_greedy_and_counts_tokens(monkeypatch) -> None:
 )
 def test_structured_stop_conditions(text: str, mode: str, expected: bool) -> None:
     assert is_structured_output_complete(text, mode) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ('{"composition_xy":[100,120,900,880]', "bbox_field"),
+        ('{"composition_bbox":"(100,120),(900,880)"', "bbox_field"),
+        ('{"composition_xy":[100,120,900', None),
+        ('{"composition_xy":[900,120,100,880]', None),
+        ('{"reason":"scores 100, 120, 900, 880"', None),
+        ("(900,120),(100,880)", None),
+    ],
+)
+def test_field_level_stop_is_explicit_and_geometry_safe(text: str, expected: str | None) -> None:
+    assert structured_output_stop_reason(text, "official", "norm1000") == expected
 
 
 def test_attention_kwargs_only_pass_non_default_values() -> None:
@@ -139,6 +158,7 @@ def test_warmup_uses_same_prompt_mode_and_generation_settings(monkeypatch, tmp_p
         calls.append((prompt, prompt_mode))
         return SimpleNamespace(
             raw_output="(0,0),(1000,1000)",
+            generated_token_count=8,
             reached_max_new_tokens=False,
         )
 
@@ -151,3 +171,47 @@ def test_warmup_uses_same_prompt_mode_and_generation_settings(monkeypatch, tmp_p
         "max_new_tokens": 48,
         "attention_implementation": "sdpa",
     }
+    assert engine.runtime_ready is True
+    assert engine.quality_ready is True
+
+
+def test_runtime_ready_allows_quality_warning_by_default(monkeypatch, tmp_path) -> None:
+    image_path = tmp_path / "warmup.jpg"
+    Image.new("RGB", (16, 16)).save(image_path)
+    engine = ShutterMuseEngine(ModelSettings(warmup_image=str(image_path), autoload=False))
+    monkeypatch.setattr(
+        engine,
+        "_generate",
+        lambda *_args: SimpleNamespace(
+            raw_output="no bbox",
+            generated_token_count=3,
+            reached_max_new_tokens=False,
+        ),
+    )
+    engine._warmup()
+    assert engine.runtime_ready is True
+    assert engine.quality_ready is False
+    assert engine.readiness_warning == "WARMUP_PARSE_FAILED"
+
+
+def test_quality_warmup_can_be_required(monkeypatch, tmp_path) -> None:
+    image_path = tmp_path / "warmup.jpg"
+    Image.new("RGB", (16, 16)).save(image_path)
+    engine = ShutterMuseEngine(
+        ModelSettings(
+            warmup_image=str(image_path),
+            require_quality_warmup=True,
+            autoload=False,
+        )
+    )
+    monkeypatch.setattr(
+        engine,
+        "_generate",
+        lambda *_args: SimpleNamespace(
+            raw_output="no bbox",
+            generated_token_count=3,
+            reached_max_new_tokens=False,
+        ),
+    )
+    with pytest.raises(Exception, match="Warmup output could not be parsed"):
+        engine._warmup()

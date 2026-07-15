@@ -26,9 +26,16 @@ describe("guidanceToInstructions", () => {
   });
 
   it("returns primary and secondary instructions separately", () => {
-    expect(guidanceToInstructions(guidance(["镜头稍微往左移", "再靠近人物一点"]))).toEqual({
+    expect(guidanceToInstructions(guidance(["镜头稍微往左移", "再靠近人物一点"]), true)).toEqual({
       primary: "镜头稍微往左移",
       secondary: "再靠近人物一点"
+    });
+  });
+
+  it("hides secondary guidance by default", () => {
+    expect(guidanceToInstructions(guidance(["镜头稍微往左移", "再靠近人物一点"]))).toEqual({
+      primary: "镜头稍微往左移",
+      secondary: null
     });
   });
 

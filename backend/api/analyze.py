@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import base64
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Callable, TypeVar
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from pydantic import ValidationError
+from starlette.datastructures import FormData, UploadFile
 
 from core.config import settings
 from core.errors import ApiError
@@ -15,11 +18,14 @@ from core.timing_metrics import PreflightMetrics, TimingMetrics
 from schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
+    FramingHintAction,
     GuidanceOutput,
+    GuidanceProblem,
     GuidanceTiming,
     SubjectPreflightResult,
     VisionFeatures,
 )
+from services.bbox_safety import validate_composition_bbox
 from services.guidance_adapter import GuidanceAdapter
 from services.service_factory import create_guidance_service
 from vision.mediapipe_processor import MediaPipeVisionProcessor
@@ -39,6 +45,71 @@ logger = logging.getLogger("beeep.analyze")
 timing_metrics = TimingMetrics()
 preflight_metrics = PreflightMetrics()
 T = TypeVar("T")
+
+
+def _form_bool(value: object, default: bool) -> bool:
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _form_int(form: FormData, key: str) -> int | None:
+    value = form.get(key)
+    return int(str(value)) if value is not None else None
+
+
+async def _parse_analyze_request(http_request: Request) -> AnalyzeRequest:
+    content_type = http_request.headers.get("content-type", "").lower()
+    try:
+        if not content_type.startswith("multipart/form-data"):
+            return AnalyzeRequest.model_validate(await http_request.json())
+
+        form = await http_request.form()
+        upload = form.get("image")
+        if not isinstance(upload, UploadFile):
+            raise ApiError(422, "IMAGE_REQUIRED", "缺少图片")
+        mime_type = (upload.content_type or "").lower()
+        if mime_type not in {"image/jpeg", "image/webp", "image/png"}:
+            raise ApiError(400, "INVALID_IMAGE_TYPE", "不支持的图片格式")
+        image_bytes = await upload.read(settings.max_image_bytes + 1)
+        if len(image_bytes) > settings.max_image_bytes:
+            raise ApiError(413, "IMAGE_TOO_LARGE", "图片超过大小限制")
+
+        timestamp = int(str(form.get("timestamp") or 0))
+        payload = {
+            "frame_id": int(str(form.get("frame_id") or 0)),
+            "timestamp": timestamp,
+            "stream_id": str(form.get("stream_id") or "legacy"),
+            "mode": str(form.get("mode") or "composition"),
+            "target_ratio": str(form.get("target_ratio") or "3:4"),
+            "composition_mode": str(form.get("composition_mode") or "auto"),
+            "language": str(form.get("language") or "zh-CN"),
+            "requires_person": _form_bool(form.get("requires_person"), True),
+            "camera_facing": str(form.get("camera_facing") or "unknown"),
+            "image_mirrored": _form_bool(form.get("image_mirrored"), False),
+            "device_orientation": str(form.get("device_orientation") or "unknown"),
+            "preview_width": _form_int(form, "preview_width"),
+            "preview_height": _form_int(form, "preview_height"),
+            "upload_mode": "multipart",
+            "tap_timestamp": _form_int(form, "tap_timestamp"),
+            "capture_started_at": _form_int(form, "capture_started_at"),
+            "capture_completed_at": _form_int(form, "capture_completed_at"),
+            "preprocess_completed_at": _form_int(form, "preprocess_completed_at"),
+            "upload_started_at": _form_int(form, "upload_started_at"),
+            "image": {
+                "base64": base64.b64encode(image_bytes).decode("ascii"),
+                "width": int(str(form.get("image_width") or 0)),
+                "height": int(str(form.get("image_height") or 0)),
+                "mime_type": mime_type,
+                "original_bytes": _form_int(form, "original_bytes"),
+                "processed_bytes": len(image_bytes),
+            },
+        }
+        return AnalyzeRequest.model_validate(payload)
+    except ApiError:
+        raise
+    except (TypeError, ValueError, ValidationError) as exc:
+        raise ApiError(422, "INVALID_REQUEST", "分析请求格式不正确") from exc
 
 
 def _run_with_timeout(callable_: Callable[[], T], timeout_ms: int, code: str, message: str) -> T:
@@ -91,6 +162,7 @@ def _response(
         composition=output.composition,
         pose=output.pose,
         model_metadata=output.model_metadata,
+        composition_safety=output.composition_safety,
         vision_features=features,
         subject_preflight=preflight,
         timing=GuidanceTiming(
@@ -102,8 +174,78 @@ def _response(
     )
 
 
+def _apply_bbox_safety(
+    request: AnalyzeRequest,
+    output: GuidanceOutput,
+    preflight: SubjectPreflightResult | None,
+    features: VisionFeatures | None,
+) -> GuidanceOutput:
+    composition = output.composition
+    metadata = output.model_metadata
+    if composition is None or composition.decision == "reject":
+        if metadata is not None:
+            metadata = metadata.model_copy(
+                update={
+                    "raw_bbox_usable": composition is not None,
+                    "safety_pass": None,
+                    "final_displayable": False,
+                }
+            )
+            return output.model_copy(update={"model_metadata": metadata})
+        return output
+
+    safety = validate_composition_bbox(
+        composition.bbox_norm,
+        preflight,
+        features,
+        request.composition_mode,
+        target_ratio=request.target_ratio,
+        image_width=request.image.width,
+        image_height=request.image.height,
+        minimum_area=settings.bbox_safety_min_area,
+        ratio_tolerance=settings.bbox_safety_ratio_tolerance,
+    )
+    if metadata is not None:
+        metadata = metadata.model_copy(
+            update={
+                "raw_bbox_usable": True,
+                "safety_pass": safety.passed,
+                "final_displayable": safety.displayable,
+                "safety_rejection_reasons": safety.rejection_reasons,
+            }
+        )
+    if safety.passed:
+        return output.model_copy(
+            update={"model_metadata": metadata, "composition_safety": safety}
+        )
+
+    action = FramingHintAction(
+        type="framing_hint",
+        message="稍微换个角度再分析",
+        confidence=min(output.confidence, 0.5),
+    )
+    return output.model_copy(
+        update={
+            "priority": "composition",
+            "problem": GuidanceProblem(
+                type="unsafe_composition_bbox",
+                description="这次推荐框不够稳定",
+            ),
+            "actions": [action],
+            "message": action.message,
+            "reason": "推荐框未通过人物和画幅安全检查",
+            "summary": "这次推荐框不够稳定",
+            "confidence": min(output.confidence, 0.5),
+            "composition": None,
+            "composition_safety": safety,
+            "model_metadata": metadata,
+        }
+    )
+
+
 @router.post("/analyze", response_model=AnalyzeResponse, response_model_exclude_none=True)
-def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
+async def analyze(http_request: Request) -> AnalyzeResponse:
+    request = await _parse_analyze_request(http_request)
     total_started = time.perf_counter()
     features: VisionFeatures | None = None
     preflight: SubjectPreflightResult | None = None
@@ -172,6 +314,8 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
 
         guidance_started = time.perf_counter()
         output = guidance_service.analyze(request, features)
+        if guidance_service.engine_name == "shuttermuse":
+            output = _apply_bbox_safety(request, output, preflight, features)
         guidance_ms = int((time.perf_counter() - guidance_started) * 1000)
     except ApiError as exc:
         exc.frame_id = request.frame_id

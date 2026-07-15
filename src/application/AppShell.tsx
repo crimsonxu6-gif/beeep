@@ -17,6 +17,7 @@ import { useCaptureController } from "./useCaptureController";
 import { PhotoPreviewScreen } from "@/screens/PhotoPreviewScreen";
 import { isAutomaticAnalysisEnabled } from "./analysisState";
 import { canRequestManualAnalysis } from "./analysisState";
+import { CameraFacing } from "@/types/frame";
 
 export function AppShell() {
   const cameraRef = useRef<CameraView | null>(null);
@@ -25,6 +26,7 @@ export function AppShell() {
   const [overlaySize, setOverlaySize] = useState<OverlaySize>({ width: 0, height: 0 });
   const [compositionMode, setCompositionMode] = useState<CompositionMode>("auto");
   const [manualCapturePending, setManualCapturePending] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<CameraFacing>("back");
   const {
     stableGuidance,
     visionFeatures,
@@ -59,6 +61,14 @@ export function AppShell() {
     enabled: cameraActive,
     fps: appConfig.sampleFps,
     onFrame: handleFrame,
+    captureContext: {
+      cameraFacing,
+      imageMirrored: cameraFacing === "front",
+      previewMirrored: cameraFacing === "front",
+      deviceOrientation: overlaySize.width > overlaySize.height ? "landscape_right" : "portrait",
+      previewWidth: overlaySize.width,
+      previewHeight: overlaySize.height
+    },
     onError: (cameraError) => {
       console.warn(cameraError.message);
     }
@@ -72,8 +82,9 @@ export function AppShell() {
       capture.capturing
     )) return;
     setManualCapturePending(true);
+    const tapTimestamp = Date.now();
     beginAnalysis();
-    const submitted = await frameSampler.captureNow();
+    const submitted = await frameSampler.captureNow(tapTimestamp);
     setManualCapturePending(false);
     if (!submitted) cancelAnalysis();
   };
@@ -126,6 +137,11 @@ export function AppShell() {
           compositionMode={compositionMode}
           onCompositionModeChange={setCompositionMode}
           debugState={debugState}
+          cameraFacing={cameraFacing}
+          onToggleCamera={() => {
+            reset();
+            setCameraFacing((current) => current === "back" ? "front" : "back");
+          }}
         />
       ) : null}
       {route !== "camera" && route !== "photoPreview" ? <AppBottomTabs activeRoute={route} onChange={setRoute} /> : null}

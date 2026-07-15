@@ -8,7 +8,7 @@ import {
   View
 } from "react-native";
 import { CameraView, PermissionResponse } from "expo-camera";
-import { Aperture, Camera, ChevronLeft, Images } from "lucide-react-native";
+import { Aperture, Camera, ChevronLeft, Images, SwitchCamera } from "lucide-react-native";
 
 import { GuidanceOverlay, OverlaySize } from "@/components/GuidanceOverlay";
 import { ModelStatus, StableGuidance } from "@/types/guidance";
@@ -17,6 +17,7 @@ import { colors, radii, typography } from "@/theme/design";
 import { CompositionMode } from "@/types/guidance";
 import { GuidanceDebugState } from "@/ai_engine/guidancePipeline";
 import { GuidanceTriggerMode } from "@/config";
+import { CameraFacing } from "@/types/frame";
 
 interface CameraWorkspaceProps {
   cameraRef: RefObject<CameraView | null>;
@@ -39,6 +40,8 @@ interface CameraWorkspaceProps {
   compositionMode: CompositionMode;
   onCompositionModeChange: (mode: CompositionMode) => void;
   debugState: GuidanceDebugState;
+  cameraFacing: CameraFacing;
+  onToggleCamera: () => void;
 }
 
 export function CameraWorkspace({
@@ -61,7 +64,9 @@ export function CameraWorkspace({
   onAnalyze,
   compositionMode,
   onCompositionModeChange,
-  debugState
+  debugState,
+  cameraFacing,
+  onToggleCamera
 }: CameraWorkspaceProps) {
   const granted = Boolean(permission?.granted);
 
@@ -72,7 +77,8 @@ export function CameraWorkspace({
           <CameraView
             ref={cameraRef}
             style={StyleSheet.absoluteFill}
-            facing="back"
+            facing={cameraFacing === "front" ? "front" : "back"}
+            mirror={cameraFacing === "front"}
             flash="off"
             enableTorch={false}
             animateShutter={false}
@@ -113,7 +119,9 @@ export function CameraWorkspace({
               : processing ? "分析中" : triggerMode === "manual" ? "待分析" : "Ready"}
           </Text>
         </View>
-        <View style={styles.topSpacer} />
+        <Pressable style={styles.topIcon} onPress={onToggleCamera}>
+          <SwitchCamera size={20} strokeWidth={2.2} color={colors.white} />
+        </Pressable>
       </View>
 
       <View style={styles.modeRail}>
@@ -207,10 +215,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: radii.round,
     backgroundColor: "rgba(255,255,255,0.12)"
-  },
-  topSpacer: {
-    width: 36,
-    height: 36
   },
   topTitleWrap: {
     alignItems: "center"

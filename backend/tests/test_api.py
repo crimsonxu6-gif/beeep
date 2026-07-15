@@ -75,6 +75,37 @@ def encoded_image(width: int, height: int) -> str:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+def jpeg_bytes(width: int, height: int) -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (width, height), "white").save(buffer, format="JPEG", quality=60)
+    return buffer.getvalue()
+
+
+def test_analyze_accepts_multipart_without_mobile_base64() -> None:
+    response = client.post(
+        "/v1/analyze",
+        data={
+            "frame_id": "8",
+            "timestamp": "2",
+            "stream_id": "multipart-test",
+            "composition_mode": "auto",
+            "target_ratio": "3:4",
+            "language": "zh-CN",
+            "requires_person": "true",
+            "camera_facing": "back",
+            "image_mirrored": "false",
+            "device_orientation": "portrait",
+            "preview_width": "360",
+            "preview_height": "640",
+            "image_width": "64",
+            "image_height": "64",
+        },
+        files={"image": ("analysis.jpg", jpeg_bytes(64, 64), "image/jpeg")},
+    )
+    assert response.status_code == 200
+    assert response.json()["frame_id"] == 8
+
+
 def test_analyze_success_has_strict_response() -> None:
     payload = base_request()
     payload["image"] = {"base64": encoded_image(64, 64), "width": 64, "height": 64, "mime_type": "image/jpeg"}

@@ -376,6 +376,10 @@ def evaluate(
     parser_comparisons: Counter[str] = Counter()
     generated_tokens: list[int] = []
     reached_max_count = 0
+    stop_reasons: Counter[str] = Counter()
+    partial_structure_count = 0
+    safety_pass_count = 0
+    final_displayable_count = 0
 
     for frame_id, record in enumerate(rows, start=1):
         started = time.perf_counter()
@@ -413,6 +417,11 @@ def evaluate(
         if isinstance(generated_token_count, int):
             generated_tokens.append(generated_token_count)
         reached_max_count += int(bool(metadata.get("reached_max_new_tokens")))
+        if metadata.get("stop_reason"):
+            stop_reasons[str(metadata["stop_reason"])] += 1
+        partial_structure_count += int(bool(metadata.get("partial_structure_used")))
+        safety_pass_count += int(metadata.get("safety_pass") is True)
+        final_displayable_count += int(bool(metadata.get("final_displayable")))
         if decision:
             decisions[str(decision)] += 1
         if coordinate_source:
@@ -480,6 +489,17 @@ def evaluate(
             "generated_token_count": generated_token_count,
             "reached_max_new_tokens": metadata.get("reached_max_new_tokens"),
             "stopped_by_structure": metadata.get("stopped_by_structure"),
+            "stop_reason": metadata.get("stop_reason"),
+            "stopped_by_bbox_field": metadata.get("stopped_by_bbox_field"),
+            "stopped_by_json": metadata.get("stopped_by_json"),
+            "stopped_by_coordinate_pairs": metadata.get("stopped_by_coordinate_pairs"),
+            "partial_structure_used": metadata.get("partial_structure_used"),
+            "json_complete": metadata.get("json_complete"),
+            "bbox_field_complete": metadata.get("bbox_field_complete"),
+            "raw_bbox_usable": metadata.get("raw_bbox_usable"),
+            "safety_pass": metadata.get("safety_pass"),
+            "final_displayable": metadata.get("final_displayable"),
+            "safety_rejection_reasons": metadata.get("safety_rejection_reasons") or [],
             "parse_failure_type": parse_failure_type,
             "parser_comparison": parser_comparison,
             "generation_config": metadata.get("generation_config"),
@@ -549,6 +569,13 @@ def evaluate(
         "generated_token_p50": percentile(generated_tokens, 0.50),
         "generated_token_p95": percentile(generated_tokens, 0.95),
         "reached_max_new_tokens_count": reached_max_count,
+        "stop_reason_distribution": dict(stop_reasons),
+        "bbox_field_stop_count": stop_reasons["bbox_field"],
+        "json_stop_count": stop_reasons["json"],
+        "eos_or_other_stop_count": total - sum(stop_reasons.values()) - reached_max_count,
+        "partial_structure_used_count": partial_structure_count,
+        "safety_pass_count": safety_pass_count,
+        "final_displayable_count": final_displayable_count,
         "output_truncated_count": parse_failures["OUTPUT_TRUNCATED"],
         "contradictory_actions": contradictory,
         "guidance_p50_ms": percentile(guidance_latencies, 0.50),
@@ -671,6 +698,10 @@ def _raw_output_rows(results: list[dict]) -> list[dict[str, Any]]:
             "raw_output_length": row.get("raw_output_length"),
             "generated_token_count": row.get("generated_token_count"),
             "reached_max_new_tokens": row.get("reached_max_new_tokens"),
+            "stop_reason": row.get("stop_reason"),
+            "partial_structure_used": row.get("partial_structure_used"),
+            "json_complete": row.get("json_complete"),
+            "bbox_field_complete": row.get("bbox_field_complete"),
             "parse_failure_type": row.get("parse_failure_type"),
             "parser_comparison": row.get("parser_comparison"),
         }
@@ -734,6 +765,7 @@ def main() -> None:
             "cpu_offload": args.cpu_offload,
             "input_short_edge": readiness.get("input_short_edge"),
             "prompt_mode": readiness.get("prompt_mode"),
+            "assistant_prefill": readiness.get("assistant_prefill"),
             "attention_implementation": readiness.get("attention_implementation"),
             **(readiness.get("generation_config") or {}),
         }

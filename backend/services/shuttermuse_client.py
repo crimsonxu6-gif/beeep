@@ -22,7 +22,9 @@ class ModelCompositionResult(BaseModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
     error_code: str | None = None
     inference_ms: int = Field(ge=0)
-    prompt_mode: Literal["official", "beeep_json"]
+    prompt_mode: Literal[
+        "official", "official_bbox_first", "official_prefill", "beeep_json"
+    ]
     coordinate_source: Literal[
         "bbox_norm",
         "bbox_1000",
@@ -39,12 +41,25 @@ class ModelCompositionResult(BaseModel):
         "official_pixels_composition_bbox",
         "official_1000_composition_xy",
         "official_pixels_composition_xy",
+        "official_1000_partial_bbox",
+        "official_pixels_partial_bbox",
+        "official_1000_partial_composition_bbox",
+        "official_pixels_partial_composition_bbox",
+        "official_1000_partial_composition_xy",
+        "official_pixels_partial_composition_xy",
     ] | None = None
     raw_output: str | None = Field(default=None, max_length=4000)
     raw_output_length: int | None = Field(default=None, ge=0)
     generated_token_count: int = Field(default=0, ge=0)
     reached_max_new_tokens: bool = False
     stopped_by_structure: bool = False
+    stop_reason: str | None = None
+    stopped_by_bbox_field: bool = False
+    stopped_by_json: bool = False
+    stopped_by_coordinate_pairs: bool = False
+    partial_structure_used: bool = False
+    json_complete: bool = False
+    bbox_field_complete: bool = False
     parse_failure_type: str | None = None
     parser_comparison: str | None = None
     generation_config: dict[str, object] | None = None

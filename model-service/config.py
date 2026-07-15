@@ -24,7 +24,7 @@ class ModelSettings:
     official_coordinate_format: str = os.getenv(
         "SHUTTERMUSE_OFFICIAL_COORDINATES", "norm1000"
     ).strip().lower()
-    max_new_tokens: int = int(os.getenv("SHUTTERMUSE_MAX_NEW_TOKENS", "96"))
+    max_new_tokens: int = int(os.getenv("SHUTTERMUSE_MAX_NEW_TOKENS", "192"))
     input_short_edge: int = int(os.getenv("SHUTTERMUSE_INPUT_SHORT_EDGE", "1024"))
     attention_implementation: str = os.getenv(
         "SHUTTERMUSE_ATTENTION_IMPLEMENTATION", "default"
@@ -40,6 +40,7 @@ class ModelSettings:
     offload_folder: str = os.getenv("SHUTTERMUSE_OFFLOAD_FOLDER", "").strip()
     debug_output: bool = _bool("SHUTTERMUSE_DEBUG_OUTPUT", False)
     eval_capture_raw_output: bool = _bool("SHUTTERMUSE_EVAL_CAPTURE_RAW_OUTPUT", False)
+    require_quality_warmup: bool = _bool("SHUTTERMUSE_REQUIRE_QUALITY_WARMUP", False)
     raw_output_max_chars: int = int(os.getenv("SHUTTERMUSE_RAW_OUTPUT_MAX_CHARS", "4000"))
     autoload: bool = _bool("SHUTTERMUSE_AUTOLOAD", True)
     api_key: str = os.getenv("SHUTTERMUSE_SERVICE_API_KEY", "")

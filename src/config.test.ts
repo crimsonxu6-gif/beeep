@@ -1,9 +1,19 @@
 import { expect, it } from "vitest";
-import { guidanceTriggerModeFromEnv, isMockEnabled } from "./config";
+import {
+  analysisUploadModeFromEnv,
+  guidanceTriggerModeFromEnv,
+  isMockEnabled
+} from "./config";
 
 it("never enables mock in production", () => {
   expect(isMockEnabled(false, "1")).toBe(false);
   expect(isMockEnabled(true, "1")).toBe(true);
+});
+
+it("defaults analysis uploads to multipart", () => {
+  expect(analysisUploadModeFromEnv(undefined)).toBe("multipart");
+  expect(analysisUploadModeFromEnv("multipart")).toBe("multipart");
+  expect(analysisUploadModeFromEnv("base64_json")).toBe("base64_json");
 });
 
 it("defaults guidance triggering to manual mode", () => {

@@ -1,4 +1,5 @@
 from prompt import (
+    OFFICIAL_PREFILL,
     build_beeep_json_photographer_prompt,
     build_official_photographer_prompt,
     build_photographer_prompt,
@@ -24,3 +25,10 @@ def test_beeep_json_prompt_uses_only_normalized_json_contract() -> None:
 def test_dispatches_prompt_mode() -> None:
     assert "bounding box" in build_photographer_prompt("official", "3:4", "auto")
     assert "严格 JSON" in build_photographer_prompt("beeep_json", "3:4", "auto")
+    assert "composition_xy" in build_photographer_prompt(
+        "official_bbox_first", "3:4", "auto"
+    )
+    assert build_photographer_prompt("official_prefill", "3:4", "auto") == (
+        build_photographer_prompt("official", "3:4", "auto")
+    )
+    assert OFFICIAL_PREFILL.startswith('{"instance_info"')

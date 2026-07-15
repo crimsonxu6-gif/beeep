@@ -35,7 +35,15 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
     guidanceLatencyMs: null,
     totalLatencyMs: null,
     guidanceEngine: null,
-    errorCode: null
+    errorCode: null,
+    captureMs: null,
+    preprocessMs: null,
+    payloadBytes: null,
+    requestBodyBytes: null,
+    networkAndServerMs: null,
+    clientNetworkOverheadMs: null,
+    renderMs: null,
+    tapToOverlayMs: null
   });
   const [processing, setProcessing] = useState(false);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);

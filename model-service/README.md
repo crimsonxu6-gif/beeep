@@ -52,28 +52,38 @@ generation/model-service deadlines. Do not use those local latency numbers as a 
 benchmark.
 
 Generation is explicitly greedy (`do_sample=false`, `num_beams=1`) and does not inherit
-sampling parameters from the checkpoint. Official mode stops after two complete coordinate
-pairs or a complete top-level JSON object; Beeep JSON mode stops only after a complete top-level
-object. A single pair or unclosed JSON never triggers early stopping. Configure attention with
+sampling parameters from the checkpoint. Official modes stop after two complete coordinate
+pairs, a complete top-level JSON object, or a complete valid explicitly named bbox field.
+This allows generation to stop before a trailing `reason` is completed. Incomplete fields,
+reversed geometry, placeholders, and numbers in prose never trigger early stopping. Beeep JSON
+mode stops only after a complete top-level object. Configure attention with
 `SHUTTERMUSE_ATTENTION_IMPLEMENTATION=default|sdpa|flash_attention_2`; `default` omits the
 `attn_implementation` argument entirely. Readiness reports the selected attention implementation,
 input short edge, and generation configuration.
 
 On startup the service validates the repository, model/LoRA paths and CUDA, loads the
-model and processor once, then runs a parse-checked warmup using the configured image or
-the official repository test image. `/ready` returns 503 while loading or after failure.
+model and processor once, then runs warmup using the configured image or the official repository
+test image. Readiness separates `runtime_ready` from `quality_ready`: a generation with at least
+one token proves runtime readiness, while a legal parsed bbox proves quality readiness. A quality
+warning permits evaluation by default; set `SHUTTERMUSE_REQUIRE_QUALITY_WARMUP=1` to require it.
+`/ready` returns 503 while runtime loading or after runtime failure.
 
 The executor permits one active GPU inference and one replaceable pending inference.
 A newer pending frame supersedes the previous not-yet-started frame. A timed-out active
 GPU generation is not falsely reported as cancelled; it continues alone while queue size
 remains bounded.
 
-Two prompt modes are available and can be evaluated against the same images. They are
+Four prompt modes are available and can be evaluated against the same images. They are
 never combined in a single prompt:
 
 - `SHUTTERMUSE_PROMPT_MODE=official` preserves the released photographer-side wording
   and `(x1,y1),(x2,y2)` output. Set `SHUTTERMUSE_OFFICIAL_COORDINATES=norm1000` (the
   default) or `pixels` according to the upstream contract being evaluated.
+- `SHUTTERMUSE_PROMPT_MODE=official_bbox_first` preserves the official task and asks for
+  `composition_xy` before explanatory text.
+- `SHUTTERMUSE_PROMPT_MODE=official_prefill` uses the official task with an assistant JSON
+  prefill. Processors that do not support continuing the final assistant message fail with
+  `PREFILL_UNSUPPORTED`; there is no silent fallback.
 - `SHUTTERMUSE_PROMPT_MODE=beeep_json` requests only strict normalized JSON:
 
 ```json
@@ -93,7 +103,8 @@ box as `keep`.
 
 The initial validation budgets are ordered so model generation stops before each outer
 HTTP layer: generation 14 s, model-service wait 15 s, Beeep backend wait 17 s and mobile
-wait 19 s. `SHUTTERMUSE_MAX_NEW_TOKENS` defaults to 96. Transformers `max_time` is passed
+wait 19 s. `SHUTTERMUSE_MAX_NEW_TOKENS` defaults to 192; shorter 48/96-token settings are
+diagnostic experiments rather than production speed controls. Transformers `max_time` is passed
 into generation; an HTTP timeout alone cannot stop an already-running GPU call.
 
 Readiness while loading:

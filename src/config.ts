@@ -13,6 +13,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export type GuidanceTriggerMode = "manual" | "stable_auto" | "continuous";
+export type AnalysisUploadMode = "multipart" | "base64_json";
 
 export function guidanceTriggerModeFromEnv(value: string | undefined): GuidanceTriggerMode {
   return value === "stable_auto" || value === "continuous" ? value : "manual";
@@ -22,6 +23,10 @@ export function isMockEnabled(isDev: boolean, value: string | undefined): boolea
   return isDev && value === "1";
 }
 
+export function analysisUploadModeFromEnv(value: string | undefined): AnalysisUploadMode {
+  return value === "base64_json" ? "base64_json" : "multipart";
+}
+
 const runtimeIsDev = typeof __DEV__ !== "undefined" && __DEV__;
 
 export const appConfig = {
@@ -29,6 +34,16 @@ export const appConfig = {
   mockEnabled: isMockEnabled(runtimeIsDev, process.env.EXPO_PUBLIC_ENABLE_MOCK),
   guidanceTriggerMode: guidanceTriggerModeFromEnv(
     process.env.EXPO_PUBLIC_GUIDANCE_TRIGGER_MODE
+  ),
+  enableSecondaryGuidance: process.env.EXPO_PUBLIC_ENABLE_SECONDARY_GUIDANCE === "1",
+  analysisImageShortEdge: Math.round(
+    clamp(numberFromEnv("EXPO_PUBLIC_ANALYSIS_IMAGE_SHORT_EDGE", 768), 320, 1600)
+  ),
+  analysisJpegQuality: clamp(
+    numberFromEnv("EXPO_PUBLIC_ANALYSIS_JPEG_QUALITY", 0.7), 0.4, 1
+  ),
+  analysisUploadMode: analysisUploadModeFromEnv(
+    process.env.EXPO_PUBLIC_ANALYSIS_UPLOAD_MODE
   ),
   sampleFps: clamp(numberFromEnv("EXPO_PUBLIC_SAMPLE_FPS", 0.75), 0.5, 1),
   visionTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_VISION_TIMEOUT_MS", 1000), 250, 5000),

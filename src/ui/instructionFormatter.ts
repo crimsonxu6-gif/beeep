@@ -1,4 +1,5 @@
 import { GuidanceAction, GuidanceOutput } from "@/types/guidance";
+import { appConfig } from "@/config";
 
 export interface GuidanceInstructions {
   primary: string;
@@ -56,13 +57,14 @@ function primaryAction(guidance: GuidanceOutput): GuidanceAction | undefined {
 }
 
 export function guidanceToInstructions(
-  guidance: GuidanceOutput | null | undefined
+  guidance: GuidanceOutput | null | undefined,
+  includeSecondary = appConfig.enableSecondaryGuidance
 ): GuidanceInstructions {
   const primary = guidance ? primaryAction(guidance) : undefined;
   const secondary = guidance?.actions[1];
   return {
     primary: primary ? clampInstruction(primary.message || fallbackMessage(primary)) : "",
-    secondary: secondary
+    secondary: includeSecondary && secondary
       ? clampInstruction(secondary.message || fallbackMessage(secondary))
       : null
   };

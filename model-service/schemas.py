@@ -20,7 +20,9 @@ class PhotographerRequest(StrictModel):
     ]
     mode: Literal["composition"] = "composition"
     language: Literal["zh-CN"] = "zh-CN"
-    prompt_mode: Literal["official", "beeep_json"] = "official"
+    prompt_mode: Literal[
+        "official", "official_bbox_first", "official_prefill", "beeep_json"
+    ] = "official"
 
 
 class GenerationConfigMetadata(StrictModel):
@@ -39,7 +41,9 @@ class PhotographerResponse(StrictModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
     error_code: str | None = None
     inference_ms: int = Field(ge=0)
-    prompt_mode: Literal["official", "beeep_json"]
+    prompt_mode: Literal[
+        "official", "official_bbox_first", "official_prefill", "beeep_json"
+    ]
     coordinate_source: Literal[
         "bbox_norm",
         "bbox_1000",
@@ -54,12 +58,25 @@ class PhotographerResponse(StrictModel):
         "official_pixels_composition_bbox",
         "official_1000_composition_xy",
         "official_pixels_composition_xy",
+        "official_1000_partial_bbox",
+        "official_pixels_partial_bbox",
+        "official_1000_partial_composition_bbox",
+        "official_pixels_partial_composition_bbox",
+        "official_1000_partial_composition_xy",
+        "official_pixels_partial_composition_xy",
     ] | None = None
     raw_output: str | None = Field(default=None, max_length=4000)
     raw_output_length: int | None = Field(default=None, ge=0)
     generated_token_count: int = Field(ge=0)
     reached_max_new_tokens: bool
     stopped_by_structure: bool
+    stop_reason: Literal["bbox_field", "json", "coordinate_pairs"] | None = None
+    stopped_by_bbox_field: bool = False
+    stopped_by_json: bool = False
+    stopped_by_coordinate_pairs: bool = False
+    partial_structure_used: bool = False
+    json_complete: bool = False
+    bbox_field_complete: bool = False
     parse_failure_type: str | None = None
     parser_comparison: Literal[
         "both_success",
@@ -86,6 +103,9 @@ class ReadinessResponse(StrictModel):
     model_loaded: bool
     processor_loaded: bool
     warmup_completed: bool
+    runtime_ready: bool
+    quality_ready: bool
+    readiness_warning: str | None = None
     device: str
     model_name: str
     load_count: int
@@ -93,6 +113,7 @@ class ReadinessResponse(StrictModel):
     executor_active: bool
     executor_pending: int
     prompt_mode: str
+    assistant_prefill: str | None = None
     official_coordinate_format: str
     attention_implementation: str
     input_short_edge: int

@@ -3,7 +3,7 @@
     "name": "AI Photo Coach",
     "slug": "ai-photo-coach",
     "version": "0.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "dark",
     "assetBundlePatterns": [
       "**/*"

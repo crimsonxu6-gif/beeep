@@ -17,6 +17,14 @@ export interface GuidanceDebugState {
   totalLatencyMs: number | null;
   guidanceEngine: string | null;
   errorCode: string | null;
+  captureMs: number | null;
+  preprocessMs: number | null;
+  payloadBytes: number | null;
+  requestBodyBytes: number | null;
+  networkAndServerMs: number | null;
+  clientNetworkOverheadMs: number | null;
+  renderMs: number | null;
+  tapToOverlayMs: number | null;
 }
 
 interface GuidancePipelineOptions {
@@ -45,7 +53,15 @@ const EMPTY_DEBUG: GuidanceDebugState = {
   guidanceLatencyMs: null,
   totalLatencyMs: null,
   guidanceEngine: null,
-  errorCode: null
+  errorCode: null,
+  captureMs: null,
+  preprocessMs: null,
+  payloadBytes: null,
+  requestBodyBytes: null,
+  networkAndServerMs: null,
+  clientNetworkOverheadMs: null,
+  renderMs: null,
+  tapToOverlayMs: null
 };
 
 export class GuidancePipeline {
@@ -110,7 +126,15 @@ export class GuidancePipeline {
         guidanceLatencyMs: guidance.timing.guidanceMs,
         totalLatencyMs: guidance.timing.totalMs,
         guidanceEngine: guidance.guidanceEngine ?? null,
-        errorCode: null
+        errorCode: null,
+        captureMs: guidance.clientTiming?.captureMs ?? null,
+        preprocessMs: guidance.clientTiming?.preprocessMs ?? null,
+        payloadBytes: guidance.clientTiming?.payloadBytes ?? null,
+        requestBodyBytes: guidance.clientTiming?.requestBodyBytes ?? null,
+        networkAndServerMs: guidance.clientTiming?.networkAndServerMs ?? null,
+        clientNetworkOverheadMs: guidance.clientTiming?.clientNetworkOverheadMs ?? null,
+        renderMs: null,
+        tapToOverlayMs: null
       };
       this.syncGuardDebug();
       if (!reliable) return;
@@ -118,6 +142,26 @@ export class GuidancePipeline {
       this.callbacks.onVisionFeatures?.(visionFeatures);
       const stable = this.options.stabilityFilter.next(guidance);
       if (stable) {
+        const renderedAt = Date.now();
+        if (stable.guidance.clientTiming) {
+          stable.guidance.clientTiming.overlayRenderedAt = renderedAt;
+          stable.guidance.clientTiming.renderMs = Math.max(
+            0,
+            renderedAt - stable.guidance.clientTiming.responseReceivedAt
+          );
+          if (stable.guidance.clientTiming.tapTimestamp) {
+            stable.guidance.clientTiming.tapToOverlayMs = Math.max(
+              0,
+              renderedAt - stable.guidance.clientTiming.tapTimestamp
+            );
+          }
+          this.debugState = {
+            ...this.debugState,
+            renderMs: stable.guidance.clientTiming.renderMs,
+            tapToOverlayMs: stable.guidance.clientTiming.tapToOverlayMs ?? null
+          };
+          this.syncGuardDebug();
+        }
         this.callbacks.onStableGuidance?.(stable);
         this.scheduleExpiry();
       }

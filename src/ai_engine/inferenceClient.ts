@@ -3,6 +3,7 @@ import { CompositionMode, GuidanceOutput, ModelStatus } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
 import { parseGuidanceJson } from "./jsonParser";
 import { createMockGuidance } from "./mockGuidance";
+import { appConfig } from "@/config";
 
 export interface GuidanceEngineInput {
   frame: CapturedFrame;
@@ -42,7 +43,8 @@ function endpointOrUndefined(value?: string): string | undefined {
   return trimmed;
 }
 
-function serializeInput(input: GuidanceEngineInput, streamId: string): Record<string, unknown> {
+function captureFields(input: GuidanceEngineInput, streamId: string): Record<string, unknown> {
+  const capture = input.frame.capture;
   return {
     frame_id: input.frame.frameId,
     timestamp: input.frame.timestamp,
@@ -52,13 +54,93 @@ function serializeInput(input: GuidanceEngineInput, streamId: string): Record<st
     language: "zh-CN",
     requires_person: true,
     stream_id: streamId,
+    camera_facing: capture?.cameraFacing ?? "unknown",
+    image_mirrored: capture?.imageMirrored ?? false,
+    device_orientation: capture?.deviceOrientation ?? "unknown",
+    preview_width: capture?.previewWidth || undefined,
+    preview_height: capture?.previewHeight || undefined,
+    tap_timestamp: capture?.tapTimestamp,
+    capture_started_at: capture?.captureStartedAt,
+    capture_completed_at: capture?.captureCompletedAt,
+    preprocess_completed_at: capture?.preprocessCompletedAt
+  };
+}
+
+async function imageBase64(input: GuidanceEngineInput): Promise<string> {
+  if (input.frame.image.base64) return input.frame.image.base64;
+  if (!input.frame.image.uri) throw new Error("Analysis image file is missing");
+  const { File } = await import("expo-file-system");
+  return new File(input.frame.image.uri).base64();
+}
+
+async function jsonRequestBody(
+  input: GuidanceEngineInput,
+  streamId: string,
+  uploadStartedAt: number
+): Promise<string> {
+  return JSON.stringify({
+    ...captureFields(input, streamId),
+    upload_mode: "base64_json",
+    upload_started_at: uploadStartedAt,
     image: {
-      base64: input.frame.image.base64,
+      base64: await imageBase64(input),
       width: input.frame.image.width,
       height: input.frame.image.height,
-      mime_type: input.frame.image.mimeType
+      mime_type: input.frame.image.mimeType,
+      original_bytes: input.frame.image.originalBytes,
+      processed_bytes: input.frame.image.processedBytes
     }
+  });
+}
+
+function multipartRequestBody(
+  input: GuidanceEngineInput,
+  streamId: string,
+  uploadStartedAt: number
+): FormData {
+  if (!input.frame.image.uri) throw new Error("Analysis image URI is missing");
+  const form = new FormData();
+  const fields = {
+    ...captureFields(input, streamId),
+    upload_started_at: uploadStartedAt,
+    image_width: input.frame.image.width,
+    image_height: input.frame.image.height,
+    original_bytes: input.frame.image.originalBytes,
+    processed_bytes: input.frame.image.processedBytes
   };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) form.append(key, String(value));
+  }
+  form.append(
+    "image",
+    {
+      uri: input.frame.image.uri,
+      name: `analysis-${input.frame.frameId}.jpg`,
+      type: input.frame.image.mimeType
+    } as unknown as Blob
+  );
+  return form;
+}
+
+function estimateMultipartBodyBytes(
+  input: GuidanceEngineInput,
+  streamId: string,
+  uploadStartedAt: number
+): number {
+  const fields = {
+    ...captureFields(input, streamId),
+    upload_started_at: uploadStartedAt,
+    image_width: input.frame.image.width,
+    image_height: input.frame.image.height,
+    original_bytes: input.frame.image.originalBytes,
+    processed_bytes: input.frame.image.processedBytes
+  };
+  const encoder = new TextEncoder();
+  const fieldBytes = Object.entries(fields).reduce((total, [key, value]) => {
+    if (value === undefined) return total;
+    return total + encoder.encode(`${key}${String(value)}`).length + 96;
+  }, 0);
+  return (input.frame.image.processedBytes ?? 0) + fieldBytes + 256;
 }
 
 function parseVisionFeatures(value: unknown): VisionFeatures | null {
@@ -94,12 +176,18 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
     try {
+      const uploadStartedAt = Date.now();
+      const useMultipart = appConfig.analysisUploadMode === "multipart" && Boolean(input.frame.image.uri);
+      const body = useMultipart
+        ? multipartRequestBody(input, this.streamId, uploadStartedAt)
+        : await jsonRequestBody(input, this.streamId, uploadStartedAt);
       const response = await fetch(this.endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(serializeInput(input, this.streamId)),
+        ...(useMultipart ? {} : { headers: { "Content-Type": "application/json" } }),
+        body,
         signal: controller.signal
       });
+      const responseReceivedAt = Date.now();
       const text = await response.text();
       if (!response.ok) {
         let status: ModelStatus = {
@@ -128,8 +216,38 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
         throw new GuidanceApiError(status);
       }
       const raw = JSON.parse(text) as unknown;
+      const guidance = parseGuidanceJson(text);
+      const capture = input.frame.capture;
+      const payloadBytes = input.frame.image.processedBytes ?? Math.ceil((input.frame.image.base64?.length ?? 0) * 0.75);
+      const requestBodyBytes = useMultipart
+        ? estimateMultipartBodyBytes(input, this.streamId, uploadStartedAt)
+        : typeof body === "string" ? new TextEncoder().encode(body).length : payloadBytes;
+      guidance.coordinateContext = {
+        imageWidth: input.frame.image.width,
+        imageHeight: input.frame.image.height,
+        previewWidth: capture?.previewWidth || input.frame.image.width,
+        previewHeight: capture?.previewHeight || input.frame.image.height,
+        cameraFacing: capture?.cameraFacing ?? "unknown",
+        imageMirrored: capture?.imageMirrored ?? false,
+        previewMirrored: capture?.previewMirrored ?? false,
+        resizeMode: "cover"
+      };
+      const networkAndServerMs = responseReceivedAt - uploadStartedAt;
+      guidance.clientTiming = {
+        ...(capture?.tapTimestamp !== undefined
+          ? { tapTimestamp: capture.tapTimestamp }
+          : {}),
+        captureMs: capture ? capture.captureCompletedAt - capture.captureStartedAt : 0,
+        preprocessMs: capture ? capture.preprocessCompletedAt - capture.captureCompletedAt : 0,
+        payloadBytes,
+        requestBodyBytes,
+        uploadStartedAt,
+        responseReceivedAt,
+        networkAndServerMs,
+        clientNetworkOverheadMs: Math.max(0, networkAndServerMs - guidance.timing.totalMs)
+      };
       return {
-        guidance: parseGuidanceJson(text),
+        guidance,
         visionFeatures: parseVisionFeatures(raw)
       };
     } catch (error) {

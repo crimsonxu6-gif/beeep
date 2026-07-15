@@ -145,6 +145,39 @@ See [.env.example](./.env.example). Important app flags:
 
 Long term, replace `takePictureAsync` sampling with CameraX `ImageAnalysis`, AVFoundation or a native frame processor. The pipeline API can remain unchanged.
 
+## Composition analysis pipeline
+
+The mobile client defaults to a deliberate manual analysis flow. An analysis tap captures an
+orientation-correct JPEG without Base64, resizes it proportionally to a 768 px short edge,
+compresses it at JPEG quality 0.7, and uploads it as multipart form data. The legacy JSON Base64
+contract remains available with `EXPO_PUBLIC_ANALYSIS_UPLOAD_MODE=base64_json`.
+
+The model service supports four prompt experiments through `SHUTTERMUSE_PROMPT_MODE`:
+`official`, `official_bbox_first`, `official_prefill`, and `beeep_json`. Official-mode parsing may
+recover a complete explicitly named `bbox`, `composition_bbox`, or `composition_xy` field from an
+otherwise truncated JSON response. It never scans arbitrary prose for coordinates and never swaps,
+clamps, or invents bbox values.
+
+Readiness reports `runtime_ready` separately from `quality_ready`. Runtime readiness requires a
+loaded model and a warmup generation with at least one token. A failed warmup bbox parse produces a
+quality warning but still permits evaluation requests unless
+`SHUTTERMUSE_REQUIRE_QUALITY_WARMUP=1`.
+
+Before a model bbox reaches the App, the backend validates target ratio, minimum area, subject
+preservation, and head/full-body cut risk. Unsafe boxes remain in evaluation metadata but are not
+drawn. Production UI displays only the primary action by default; set
+`EXPO_PUBLIC_ENABLE_SECONDARY_GUIDANCE=1` for controlled experiments. The debug panel still lists
+all backend actions.
+
+### Minimum real-device verification
+
+Automated tests do not replace camera verification. At minimum, validate one physical Android
+phone on Wi-Fi with rear and front portrait capture, landscape rotation, front-preview mirroring,
+aspect-fill overlays near all four corners, normal/low/backlight/motion scenes, timeout recovery,
+and ten consecutive analyses without duplicate requests, freezes, or crashes. Record capture,
+preprocess, payload, network/server, render, and tap-to-overlay timings; do not infer these metrics
+from server inference time.
+
 ## Checks
 
 ```powershell

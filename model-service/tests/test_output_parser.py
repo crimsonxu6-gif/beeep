@@ -1,4 +1,6 @@
-from output_parser import parse_photographer_output
+import pytest
+
+from output_parser import extract_partial_explicit_bbox, parse_photographer_output
 
 
 def test_parses_strict_normalized_json() -> None:
@@ -23,6 +25,37 @@ def test_supports_official_norm1000_contract() -> None:
     assert parsed.status == "success"
     assert parsed.bbox_norm == (0.1, 0.12, 0.9, 0.88)
     assert parsed.coordinate_source == "official_1000_pairs"
+
+
+def test_recovers_complete_explicit_field_from_unclosed_json() -> None:
+    raw = '{"instance_info":[{"composition_xy":[100,120,900,880],"reason":"unfinished'
+    parsed = parse_photographer_output(
+        raw,
+        768,
+        1024,
+        prompt_mode="official",
+        official_coordinate_format="norm1000",
+        reached_max_new_tokens=True,
+    )
+    assert parsed.status == "success"
+    assert parsed.bbox_norm == (0.1, 0.12, 0.9, 0.88)
+    assert parsed.coordinate_source == "official_1000_partial_composition_xy"
+    assert parsed.partial_structure_used is True
+    assert parsed.json_complete is False
+    assert parsed.bbox_field_complete is True
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"composition_xy":[100,120,900',
+        '{"composition_xy":[900,120,100,880]',
+        '{"reason":"scores 100,120,900,880"',
+        '{"composition_xy":[-1,120,900,880]',
+    ],
+)
+def test_partial_extraction_rejects_incomplete_unsafe_or_unrelated_values(raw: str) -> None:
+    assert extract_partial_explicit_bbox(raw, "norm1000") is None
 
 
 def test_supports_official_trained_instance_info_contract() -> None:

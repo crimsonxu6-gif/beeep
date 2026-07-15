@@ -16,16 +16,16 @@ interface GuidanceDebugPanelProps {
 }
 
 function actionLabel(stableGuidance: StableGuidance | null): string {
-  const action = stableGuidance?.guidance.actions[0];
-  if (!action) {
+  const actions = stableGuidance?.guidance.actions ?? [];
+  if (!actions.length) {
     return "none";
   }
-
-  if (action.type === "move_camera" || action.type === "adjust_distance" || action.type === "adjust_angle") {
-    return `${action.type} ${action.direction} / ${action.message}`;
-  }
-
-  return `${action.type} / ${action.message}`;
+  return actions.map((action) => {
+    if (action.type === "move_camera" || action.type === "adjust_distance" || action.type === "adjust_angle") {
+      return `${action.type} ${action.direction} / ${action.message}`;
+    }
+    return `${action.type} / ${action.message}`;
+  }).join(" | ");
 }
 
 function visionLabel(visionFeatures: VisionFeatures | null): string {
@@ -59,6 +59,11 @@ export function GuidanceDebugPanel({
       <Text style={styles.line}>Frame: {debugState.latestAcceptedFrameId}/{debugState.latestProcessedFrameId}/{debugState.latestRenderedFrameId}</Text>
       <Text style={styles.line}>Stale dropped: {debugState.droppedStaleResultCount}</Text>
       <Text style={styles.line}>Timing P/V/G/T: {guidance?.timing.preflightMs ?? "-"}/{debugState.visionLatencyMs ?? "-"}/{debugState.guidanceLatencyMs ?? "-"}/{debugState.totalLatencyMs ?? "-"}ms</Text>
+      <Text style={styles.line}>Capture/Preprocess: {debugState.captureMs ?? "-"}/{debugState.preprocessMs ?? "-"}ms</Text>
+      <Text style={styles.line}>Payload/Body: {debugState.payloadBytes ?? "-"}/{debugState.requestBodyBytes ?? "-"} bytes</Text>
+      <Text style={styles.line}>Upload+server/Server: {debugState.networkAndServerMs ?? "-"}/{guidance?.timing.totalMs ?? "-"}ms</Text>
+      <Text style={styles.line}>Network overhead: {debugState.clientNetworkOverheadMs ?? "-"}ms</Text>
+      <Text style={styles.line}>Render/Tap to overlay: {debugState.renderMs ?? "-"}/{debugState.tapToOverlayMs ?? "-"}ms</Text>
       <Text style={styles.line}>Mock: {String(appConfig.mockEnabled)} | Mode: {compositionMode}</Text>
       <Text style={styles.line}>Engine: {debugState.guidanceEngine ?? "-"}</Text>
       <Text style={styles.line}>Error: {debugState.errorCode ?? "-"}</Text>

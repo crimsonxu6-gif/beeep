@@ -26,6 +26,8 @@ class ImagePayload(StrictModel):
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     mime_type: str = Field(default="image/jpeg", max_length=32)
+    original_bytes: int | None = Field(default=None, ge=0)
+    processed_bytes: int | None = Field(default=None, ge=0)
 
 
 class VisionFeatureRequest(StrictModel):
@@ -41,6 +43,19 @@ class AnalyzeRequest(VisionFeatureRequest):
     language: Literal["zh-CN"] = "zh-CN"
     requires_person: bool = True
     stream_id: str = Field(default="legacy", min_length=1, max_length=64)
+    camera_facing: Literal["front", "back", "unknown"] = "unknown"
+    image_mirrored: bool = False
+    device_orientation: Literal[
+        "portrait", "portrait_upside_down", "landscape_left", "landscape_right", "unknown"
+    ] = "unknown"
+    preview_width: int | None = Field(default=None, gt=0)
+    preview_height: int | None = Field(default=None, gt=0)
+    upload_mode: Literal["multipart", "base64_json"] = "base64_json"
+    tap_timestamp: int | None = Field(default=None, ge=0)
+    capture_started_at: int | None = Field(default=None, ge=0)
+    capture_completed_at: int | None = Field(default=None, ge=0)
+    preprocess_completed_at: int | None = Field(default=None, ge=0)
+    upload_started_at: int | None = Field(default=None, ge=0)
 
 
 class ImageSize(StrictModel):
@@ -171,7 +186,9 @@ class GuidanceTiming(StrictModel):
 
 
 class ModelEvaluationMetadata(StrictModel):
-    prompt_mode: Literal["official", "beeep_json"]
+    prompt_mode: Literal[
+        "official", "official_bbox_first", "official_prefill", "beeep_json"
+    ]
     coordinate_source: Literal[
         "bbox_norm",
         "bbox_1000",
@@ -188,6 +205,12 @@ class ModelEvaluationMetadata(StrictModel):
         "official_pixels_composition_bbox",
         "official_1000_composition_xy",
         "official_pixels_composition_xy",
+        "official_1000_partial_bbox",
+        "official_pixels_partial_bbox",
+        "official_1000_partial_composition_bbox",
+        "official_pixels_partial_composition_bbox",
+        "official_1000_partial_composition_xy",
+        "official_pixels_partial_composition_xy",
     ] | None = None
     decision: Literal["keep", "refine", "reject"] | None = None
     bbox_norm: tuple[float, float, float, float] | None = None
@@ -198,9 +221,28 @@ class ModelEvaluationMetadata(StrictModel):
     generated_token_count: int = Field(default=0, ge=0)
     reached_max_new_tokens: bool = False
     stopped_by_structure: bool = False
+    stop_reason: str | None = None
+    stopped_by_bbox_field: bool = False
+    stopped_by_json: bool = False
+    stopped_by_coordinate_pairs: bool = False
+    partial_structure_used: bool = False
+    json_complete: bool = False
+    bbox_field_complete: bool = False
     parse_failure_type: str | None = None
     parser_comparison: str | None = None
     generation_config: dict[str, object] | None = None
+    raw_bbox_usable: bool = False
+    safety_pass: bool | None = None
+    final_displayable: bool = False
+    safety_rejection_reasons: list[str] = Field(default_factory=list)
+
+
+class BBoxSafetyResult(StrictModel):
+    passed: bool
+    displayable: bool
+    rejection_reasons: list[str] = Field(default_factory=list)
+    subject_preservation_ratio: float | None = Field(default=None, ge=0, le=1)
+    target_ratio_error: float | None = Field(default=None, ge=0)
 
 
 class GuidanceOutput(StrictModel):
@@ -215,6 +257,7 @@ class GuidanceOutput(StrictModel):
     composition: CompositionRecommendation | None = None
     pose: PoseRecommendation | None = None
     model_metadata: ModelEvaluationMetadata | None = None
+    composition_safety: BBoxSafetyResult | None = None
 
 
 class SubjectPreflightResult(StrictModel):
@@ -277,6 +320,7 @@ class AnalyzeResponse(StrictModel):
     composition: CompositionRecommendation | None = None
     pose: PoseRecommendation | None = None
     model_metadata: ModelEvaluationMetadata | None = None
+    composition_safety: BBoxSafetyResult | None = None
     vision_features: VisionFeatures | None = None
     subject_preflight: SubjectPreflightResult | None = None
     timing: GuidanceTiming

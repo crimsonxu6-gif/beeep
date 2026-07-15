@@ -10,6 +10,10 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 mode it runs the reusable full MediaPipe processor. In `shuttermuse` mode it runs a
 face-first, pose-fallback `SubjectPreflight`. Uncertain detections fail open, while only
 confirmed multi-frame absence can block the GPU service when blocking is explicitly enabled.
+The endpoint accepts the legacy JSON Base64 body and the preferred multipart upload. Multipart
+metadata explicitly carries camera facing, mirror state, device orientation, preview/image size,
+and client capture timestamps; the backend converts the image in memory for the existing model
+service contract.
 
 `GUIDANCE_ENGINE=rules` uses deterministic composition, light, distance and pose rules.
 `GUIDANCE_ENGINE=shuttermuse` calls the dedicated GPU service at
@@ -21,6 +25,9 @@ The model service returns `decision`, strict `bbox_norm`, confidence and model l
 `framing_hint` or `hold`. It scores horizontal, vertical and distance candidates, then
 returns the strongest one or two different dimensions. Invalid model geometry is an
 explicit `INVALID_MODEL_OUTPUT` state and never creates a composition box.
+Legal model boxes pass a separate safety validator before display. Target-ratio mismatch, very
+small crops, insufficient subject preservation, head-cut risk, and full-body loss reject the box
+without repairing it. The raw box and rejection reasons remain in `model_metadata` for evaluation.
 
 ShutterMuse failures never fall back to `rules`. API errors preserve the technical code
 for logs/debugging while returning deterministic user-facing `message`, `suggestion`,
@@ -40,6 +47,8 @@ SUBJECT_MISSING_CONFIRM_FRAMES=3
 SUBJECT_POSE_MIN_VISIBLE_KEYPOINTS=4
 SUBJECT_POSE_MIN_VISIBILITY=0.35
 SUBJECT_POSE_MIN_AREA=0.015
+BBOX_SAFETY_MIN_AREA=0.12
+BBOX_SAFETY_RATIO_TOLERANCE=0.20
 SUBJECT_PREFLIGHT_CONFIRMATION_FRAMES=3
 SUBJECT_PREFLIGHT_HOLD_MS=1500
 SUBJECT_PREFLIGHT_STATE_TTL_MS=10000
@@ -65,7 +74,7 @@ Deployment notes:
 
 - use explicit `CORS_ALLOWED_ORIGINS` in production;
 - use one process worker per MediaPipe detector set;
-- Base64 image data is processed in memory and not persisted or logged;
+- multipart and Base64 image data are processed in memory and not persisted or logged;
 - `BEEEP_API_KEY` enables the reserved API key check for `/v1/*`;
 - `SUBJECT_PREFLIGHT_TIMEOUT_MS`, `VISION_TIMEOUT_MS` and `GUIDANCE_TIMEOUT_MS` are independent;
 - `/ready` proxies the selected engine's real readiness instead of returning a constant;

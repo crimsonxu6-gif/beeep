@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-PromptMode = Literal["official", "beeep_json"]
+PromptMode = Literal[
+    "official", "official_bbox_first", "official_prefill", "beeep_json"
+]
+
+OFFICIAL_PREFILL = '{"instance_info":[{"composition_xy":['
 
 COMPOSITION_PREFERENCES = {
     "auto": "由模型自主判断最自然的主体位置，不强制居中或三分构图。",
@@ -20,6 +24,14 @@ def build_official_photographer_prompt(target_ratio: str) -> str:
         f"请找出图片中构图最好的区域，请按照{target_ratio}的比例输出bounding box，"
         "并按照(x1,y1),(x2,y2)的格式返回一个bounding box，其中(x1,y1)是左上角的顶点，"
         "(x2,y2)是右下角的顶点。"
+    )
+
+
+def build_official_bbox_first_prompt(target_ratio: str) -> str:
+    return (
+        build_official_photographer_prompt(target_ratio)
+        + "请先输出 composition_xy 字段中的四个坐标，再输出其他说明。"
+        + '输出以 {"instance_info":[{"composition_xy":[x1,y1,x2,y2] 开始。'
     )
 
 
@@ -50,8 +62,10 @@ def build_photographer_prompt(
     mode: str = "composition",
     language: str = "zh-CN",
 ) -> str:
-    if prompt_mode == "official":
+    if prompt_mode in {"official", "official_prefill"}:
         return build_official_photographer_prompt(target_ratio)
+    if prompt_mode == "official_bbox_first":
+        return build_official_bbox_first_prompt(target_ratio)
     if prompt_mode == "beeep_json":
         return build_beeep_json_photographer_prompt(
             target_ratio,

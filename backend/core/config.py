@@ -53,6 +53,10 @@ class Settings:
         os.getenv("SUBJECT_POSE_MIN_VISIBILITY", "0.35")
     )
     subject_pose_min_area: float = float(os.getenv("SUBJECT_POSE_MIN_AREA", "0.015"))
+    bbox_safety_min_area: float = float(os.getenv("BBOX_SAFETY_MIN_AREA", "0.12"))
+    bbox_safety_ratio_tolerance: float = float(
+        os.getenv("BBOX_SAFETY_RATIO_TOLERANCE", "0.20")
+    )
     subject_preflight_confirmation_frames: int = int(
         os.getenv("SUBJECT_PREFLIGHT_CONFIRMATION_FRAMES", "3")
     )

@@ -15,8 +15,12 @@ from typing import Any
 from PIL import Image, ImageOps
 
 from config import ModelSettings
-from output_parser import ParsedComposition, parse_photographer_output
-from prompt import build_photographer_prompt
+from output_parser import (
+    ParsedComposition,
+    extract_partial_explicit_bbox,
+    parse_photographer_output,
+)
+from prompt import OFFICIAL_PREFILL, build_photographer_prompt
 from schemas import PhotographerRequest
 
 logger = logging.getLogger("shuttermuse")
@@ -28,6 +32,10 @@ class GenerationResult:
     generated_token_count: int
     reached_max_new_tokens: bool
     stopped_by_structure: bool
+    stop_reason: str | None = None
+    stopped_by_bbox_field: bool = False
+    stopped_by_json: bool = False
+    stopped_by_coordinate_pairs: bool = False
 
 
 @dataclass(frozen=True)
@@ -49,27 +57,69 @@ def _complete_json_object(text: str) -> bool:
     return not text[start + end :].strip()
 
 
-def is_structured_output_complete(text: str, prompt_mode: str) -> bool:
+def structured_output_stop_reason(
+    text: str,
+    prompt_mode: str,
+    official_coordinate_format: str = "norm1000",
+    image_width: int | None = None,
+    image_height: int | None = None,
+) -> str | None:
     if prompt_mode == "beeep_json":
-        return _complete_json_object(text)
+        return "json" if _complete_json_object(text) else None
     # Released checkpoints occasionally answer the official prompt with their
     # training JSON envelope. Either complete representation is safe to stop on.
-    has_coordinate_pairs = bool(
-        re.search(
+    pair_match = re.search(
             r"\(\s*[-+]?\d*\.?\d+\s*,\s*[-+]?\d*\.?\d+\s*\)\s*,\s*"
             r"\(\s*[-+]?\d*\.?\d+\s*,\s*[-+]?\d*\.?\d+\s*\)",
             text,
-        )
     )
-    return has_coordinate_pairs or _complete_json_object(text)
+    partial = extract_partial_explicit_bbox(
+        text,
+        official_coordinate_format,  # type: ignore[arg-type]
+        image_width,
+        image_height,
+    )
+    if partial is not None:
+        return "bbox_field"
+    if pair_match:
+        parsed_pair = parse_photographer_output(
+            pair_match.group(0),
+            image_width or 1,
+            image_height or 1,
+            prompt_mode="official",
+            official_coordinate_format=official_coordinate_format,  # type: ignore[arg-type]
+        )
+        if parsed_pair.status == "success":
+            return "coordinate_pairs"
+    if _complete_json_object(text):
+        return "json"
+    return None
+
+
+def is_structured_output_complete(text: str, prompt_mode: str) -> bool:
+    return structured_output_stop_reason(text, prompt_mode) is not None
 
 
 class StructuredOutputStoppingCriteria:
-    def __init__(self, processor: Any, input_length: int, prompt_mode: str) -> None:
+    def __init__(
+        self,
+        processor: Any,
+        input_length: int,
+        prompt_mode: str,
+        official_coordinate_format: str = "norm1000",
+        output_prefix: str = "",
+        image_width: int | None = None,
+        image_height: int | None = None,
+    ) -> None:
         self.processor = processor
         self.input_length = input_length
         self.prompt_mode = prompt_mode
+        self.official_coordinate_format = official_coordinate_format
+        self.output_prefix = output_prefix
+        self.image_width = image_width
+        self.image_height = image_height
         self.triggered = False
+        self.stop_reason: str | None = None
 
     def __call__(self, input_ids: Any, _scores: Any, **_kwargs: Any) -> bool:
         generated = input_ids[0][self.input_length :]
@@ -77,7 +127,14 @@ class StructuredOutputStoppingCriteria:
             text = self.processor.decode(generated, skip_special_tokens=True)
         else:
             text = self.processor.batch_decode([generated], skip_special_tokens=True)[0]
-        self.triggered = is_structured_output_complete(text, self.prompt_mode)
+        self.stop_reason = structured_output_stop_reason(
+            self.output_prefix + text,
+            self.prompt_mode,
+            self.official_coordinate_format,
+            self.image_width,
+            self.image_height,
+        )
+        self.triggered = self.stop_reason is not None
         return self.triggered
 
 
@@ -96,6 +153,9 @@ class ShutterMuseEngine:
         self.error_code: str | None = None
         self.error_message: str | None = None
         self.warmup_completed = False
+        self.runtime_ready = False
+        self.quality_ready = False
+        self.readiness_warning: str | None = None
         self.load_count = 0
         self.inference_count = 0
         self._state_lock = threading.Lock()
@@ -191,6 +251,9 @@ class ShutterMuseEngine:
             "model_loaded": self.model is not None,
             "processor_loaded": self.processor is not None,
             "warmup_completed": self.warmup_completed,
+            "runtime_ready": self.runtime_ready,
+            "quality_ready": self.quality_ready,
+            "readiness_warning": self.readiness_warning,
             "device": self.settings.device,
             "model_name": self.settings.model_path or "ShutterMuse/ShutterMuse",
             "load_count": self.load_count,
@@ -198,6 +261,9 @@ class ShutterMuseEngine:
             "executor_active": executor_active,
             "executor_pending": executor_pending,
             "prompt_mode": self.settings.prompt_mode,
+            "assistant_prefill": (
+                OFFICIAL_PREFILL if self.settings.prompt_mode == "official_prefill" else None
+            ),
             "official_coordinate_format": self.settings.official_coordinate_format,
             "attention_implementation": self.settings.attention_implementation,
             "input_short_edge": self.settings.input_short_edge,
@@ -207,10 +273,15 @@ class ShutterMuseEngine:
         }
 
     def _validate_configuration(self) -> None:
-        if self.settings.prompt_mode not in {"official", "beeep_json"}:
+        if self.settings.prompt_mode not in {
+            "official",
+            "official_bbox_first",
+            "official_prefill",
+            "beeep_json",
+        }:
             raise ModelServiceError(
                 "INVALID_CONFIGURATION",
-                "SHUTTERMUSE_PROMPT_MODE must be official or beeep_json",
+                "SHUTTERMUSE_PROMPT_MODE is not supported",
             )
         if self.settings.official_coordinate_format not in {"norm1000", "pixels"}:
             raise ModelServiceError(
@@ -365,6 +436,10 @@ class ShutterMuseEngine:
                 "auto",
             )
             generation = self._generate(image, prompt, self.settings.prompt_mode)
+            if generation.generated_token_count < 1:
+                raise ModelServiceError("WARMUP_FAILED", "Warmup generated no output tokens")
+            self.runtime_ready = True
+            self.warmup_completed = True
             if self.settings.debug_output:
                 logger.info("warmup_raw_output=%r", generation.raw_output[:2000])
             parsed = parse_photographer_output(
@@ -375,10 +450,23 @@ class ShutterMuseEngine:
                 official_coordinate_format=self.settings.official_coordinate_format,
                 reached_max_new_tokens=generation.reached_max_new_tokens,
             )
-            if parsed.status != "success":
-                raise ModelServiceError("WARMUP_PARSE_FAILED", "Warmup output could not be parsed")
-            self.warmup_completed = True
-            logger.info("Warmup completed decision=%s bbox_norm=%s", parsed.decision, parsed.bbox_norm)
+            self.quality_ready = parsed.status == "success"
+            if not self.quality_ready:
+                self.readiness_warning = "WARMUP_PARSE_FAILED"
+                logger.warning("Warmup runtime succeeded but output quality check failed")
+                if self.settings.require_quality_warmup:
+                    raise ModelServiceError(
+                        "WARMUP_PARSE_FAILED", "Warmup output could not be parsed"
+                    )
+            else:
+                self.readiness_warning = None
+            logger.info(
+                "Warmup completed runtime_ready=%s quality_ready=%s decision=%s bbox_norm=%s",
+                self.runtime_ready,
+                self.quality_ready,
+                parsed.decision,
+                parsed.bbox_norm,
+            )
         except ModelServiceError:
             raise
         except Exception as exc:  # noqa: BLE001
@@ -399,15 +487,36 @@ class ShutterMuseEngine:
                 ],
             }
         ]
-        try:
-            text = self.processor.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
-                enable_thinking=False,
+        output_prefix = ""
+        if prompt_mode == "official_prefill":
+            output_prefix = OFFICIAL_PREFILL
+            messages.append(
+                {"role": "assistant", "content": [{"type": "text", "text": output_prefix}]}
             )
-        except TypeError:
-            text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            try:
+                text = self.processor.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    continue_final_message=True,
+                    enable_thinking=False,
+                )
+            except (TypeError, ValueError) as exc:
+                raise ModelServiceError(
+                    "PREFILL_UNSUPPORTED",
+                    "The configured processor does not support assistant prefill",
+                ) from exc
+        else:
+            try:
+                text = self.processor.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=False,
+                )
+            except TypeError:
+                text = self.processor.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
         image_inputs, video_inputs = process_vision_info(messages)
         inputs = self.processor(
             text=[text],
@@ -421,6 +530,10 @@ class ShutterMuseEngine:
             self.processor,
             input_length,
             prompt_mode,
+            self.settings.official_coordinate_format,
+            output_prefix,
+            image.width,
+            image.height,
         )
         with torch.inference_mode():
             generated = self.model.generate(
@@ -434,17 +547,23 @@ class ShutterMuseEngine:
         trimmed = [
             output[len(input_ids) :] for input_ids, output in zip(inputs.input_ids, generated, strict=True)
         ]
-        raw_output = self.processor.batch_decode(
+        decoded_output = self.processor.batch_decode(
             trimmed,
             skip_special_tokens=True,
             clean_up_tokenization_spaces=False,
         )[0]
+        raw_output = output_prefix + decoded_output
         token_count = int(trimmed[0].shape[-1])
+        stop_reason = stopping_criteria.stop_reason
         return GenerationResult(
             raw_output=raw_output,
             generated_token_count=token_count,
             reached_max_new_tokens=token_count >= self.settings.max_new_tokens,
             stopped_by_structure=stopping_criteria.triggered,
+            stop_reason=stop_reason,
+            stopped_by_bbox_field=stop_reason == "bbox_field",
+            stopped_by_json=stop_reason == "json",
+            stopped_by_coordinate_pairs=stop_reason == "coordinate_pairs",
         )
 
     def generation_config(self) -> dict[str, Any]:

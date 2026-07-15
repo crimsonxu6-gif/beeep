@@ -3,6 +3,7 @@ import { CameraView } from "expo-camera";
 
 import { CapturedFrame } from "@/types/frame";
 import { AnalysisFrameController } from "./AnalysisFrameController";
+import { AnalysisCaptureContext } from "./AnalysisFrameController";
 import { FrameSampler } from "./FrameSampler";
 
 interface UseCameraFrameSamplerOptions {
@@ -11,10 +12,11 @@ interface UseCameraFrameSamplerOptions {
   fps: number;
   onFrame: (frame: CapturedFrame) => void;
   onError?: (error: Error) => void;
+  captureContext?: Omit<AnalysisCaptureContext, "tapTimestamp">;
 }
 
 export interface CameraFrameSamplerControls {
-  captureNow: () => Promise<boolean>;
+  captureNow: (tapTimestamp?: number) => Promise<boolean>;
 }
 
 export function useCameraFrameSampler({
@@ -22,7 +24,8 @@ export function useCameraFrameSampler({
   enabled,
   fps,
   onFrame,
-  onError
+  onError,
+  captureContext
 }: UseCameraFrameSamplerOptions): CameraFrameSamplerControls {
   const frameIdRef = useRef(1);
   const controllerRef = useRef(new AnalysisFrameController());
@@ -40,7 +43,7 @@ export function useCameraFrameSampler({
     onErrorRef.current = onError;
   }, [onFrame, onError]);
 
-  const captureNow = useCallback(async (): Promise<boolean> => {
+  const captureNow = useCallback(async (tapTimestamp?: number): Promise<boolean> => {
     if (inFlightRef.current) {
       return false;
     }
@@ -52,7 +55,11 @@ export function useCameraFrameSampler({
     try {
       const frame = await controllerRef.current.captureAnalysisFrame(
         camera,
-        frameIdRef.current
+        frameIdRef.current,
+        {
+          ...captureContext,
+          ...(tapTimestamp !== undefined ? { tapTimestamp } : {})
+        }
       );
       if (!frame) {
         return false;
@@ -66,7 +73,7 @@ export function useCameraFrameSampler({
     } finally {
       inFlightRef.current = false;
     }
-  }, [cameraRef]);
+  }, [cameraRef, captureContext]);
 
   useEffect(() => {
     if (!enabled) {

@@ -31,6 +31,12 @@ CoordinateSource = Literal[
     "official_pixels_composition_bbox",
     "official_1000_composition_xy",
     "official_pixels_composition_xy",
+    "official_1000_partial_bbox",
+    "official_pixels_partial_bbox",
+    "official_1000_partial_composition_bbox",
+    "official_pixels_partial_composition_bbox",
+    "official_1000_partial_composition_xy",
+    "official_pixels_partial_composition_xy",
 ]
 
 NUMBER = r"[-+]?\d*\.?\d+"
@@ -58,6 +64,18 @@ class ParsedComposition:
     error_code: str | None = None
     coordinate_source: CoordinateSource | None = None
     parse_failure_type: ParseFailureType | None = None
+    partial_structure_used: bool = False
+    json_complete: bool = False
+    bbox_field_complete: bool = False
+
+
+@dataclass(frozen=True)
+class PartialBBoxResult:
+    values: list[float]
+    coordinate_source: CoordinateSource
+    field_name: Literal["bbox", "composition_bbox", "composition_xy"]
+    json_complete: bool
+    bbox_field_complete: bool = True
 
 
 def _first_object(raw: str) -> dict[str, Any] | None:
@@ -126,6 +144,84 @@ def _official_source(
 ) -> CoordinateSource:
     prefix = "official_1000" if coordinate_format == "norm1000" else "official_pixels"
     return f"{prefix}_{shape}"  # type: ignore[return-value]
+
+
+def _partial_official_source(
+    coordinate_format: Literal["norm1000", "pixels"],
+    field_name: str,
+) -> CoordinateSource:
+    prefix = "official_1000" if coordinate_format == "norm1000" else "official_pixels"
+    return f"{prefix}_partial_{field_name}"  # type: ignore[return-value]
+
+
+def _json_is_complete(raw: str) -> bool:
+    text = raw.strip()
+    start = text.find("{")
+    if start < 0:
+        return False
+    try:
+        _, end = json.JSONDecoder().raw_decode(text[start:])
+    except json.JSONDecodeError:
+        return False
+    return not text[start + end :].strip()
+
+
+def extract_partial_explicit_bbox(
+    raw_output: str,
+    official_coordinate_format: Literal["norm1000", "pixels"],
+    image_width: int | None = None,
+    image_height: int | None = None,
+) -> PartialBBoxResult | None:
+    """Recover only a complete, explicitly named bbox field from partial JSON.
+
+    The extraction is deliberately narrow: it never scans arbitrary prose for
+    four numbers and never repairs geometry or coordinate ranges.
+    """
+    for field_name in ("bbox", "composition_bbox", "composition_xy"):
+        field = re.escape(field_name)
+        patterns = (
+            re.compile(
+                rf'["\']{field}["\']\s*:\s*\[\s*({NUMBER})\s*,\s*({NUMBER})\s*,\s*'
+                rf'({NUMBER})\s*,\s*({NUMBER})\s*\]',
+                re.IGNORECASE,
+            ),
+            re.compile(
+                rf'["\']{field}["\']\s*:\s*["\']\s*'
+                rf'\(\s*({NUMBER})\s*,\s*({NUMBER})\s*\)\s*,\s*'
+                rf'\(\s*({NUMBER})\s*,\s*({NUMBER})\s*\)\s*["\']',
+                re.IGNORECASE,
+            ),
+        )
+        for pattern in patterns:
+            match = pattern.search(raw_output)
+            if match is None:
+                continue
+            values = [float(value) for value in match.groups()]
+            source = _partial_official_source(official_coordinate_format, field_name)
+            # Validate using the declared coordinate system without mutating it.
+            x1, y1, x2, y2 = values
+            limit = 1000.0 if official_coordinate_format == "norm1000" else None
+            if x2 <= x1 or y2 <= y1:
+                return None
+            if limit is not None and not all(0 <= value <= limit for value in values):
+                return None
+            if official_coordinate_format == "pixels":
+                if image_width is None or image_height is None:
+                    return None
+                if not (
+                    0 <= x1 <= image_width
+                    and 0 <= x2 <= image_width
+                    and 0 <= y1 <= image_height
+                    and 0 <= y2 <= image_height
+                ):
+                    return None
+            return PartialBBoxResult(
+                values=values,
+                coordinate_source=source,
+                field_name=field_name,  # type: ignore[arg-type]
+                json_complete=_json_is_complete(raw_output),
+            )
+    return None
 
 
 def _explicit_bbox_from_object(
@@ -224,7 +320,9 @@ def parse_photographer_output(
     image_width: int,
     image_height: int,
     *,
-    prompt_mode: Literal["official", "beeep_json"] = "beeep_json",
+    prompt_mode: Literal[
+        "official", "official_bbox_first", "official_prefill", "beeep_json"
+    ] = "beeep_json",
     official_coordinate_format: Literal["norm1000", "pixels"] = "norm1000",
     reached_max_new_tokens: bool = False,
 ) -> ParsedComposition:
@@ -233,6 +331,9 @@ def parse_photographer_output(
     confidence: float | None = None
     values: list[float] | None = None
     source: CoordinateSource | None = None
+    partial_structure_used = False
+    bbox_field_complete = False
+    json_complete = _json_is_complete(raw)
 
     if obj is not None:
         raw_decision = obj.get("decision")
@@ -251,11 +352,25 @@ def parse_photographer_output(
                 )
         values, source = _explicit_bbox_from_object(
             obj,
-            prompt_mode=prompt_mode,
+            prompt_mode="official" if prompt_mode.startswith("official") else "beeep_json",
             official_coordinate_format=official_coordinate_format,
         )
 
-    if values is None and prompt_mode == "official":
+    if values is None and prompt_mode.startswith("official") and not json_complete:
+        partial = extract_partial_explicit_bbox(
+            raw,
+            official_coordinate_format,
+            image_width,
+            image_height,
+        )
+        if partial is not None:
+            values = partial.values
+            source = partial.coordinate_source
+            partial_structure_used = True
+            bbox_field_complete = partial.bbox_field_complete
+            json_complete = partial.json_complete
+
+    if values is None and prompt_mode.startswith("official"):
         pair = PAIR_PATTERN.search(raw)
         if pair:
             values = [float(value) for value in pair.groups()]
@@ -267,7 +382,9 @@ def parse_photographer_output(
                 source = _official_source(official_coordinate_format, "list")
 
     if decision == "reject" and values is None:
-        return ParsedComposition("success", "reject", None, confidence)
+        return ParsedComposition(
+            "success", "reject", None, confidence, json_complete=json_complete
+        )
     if values is None or source is None:
         failure = _failure_type(raw, reached_max_new_tokens)
         return ParsedComposition(
@@ -277,6 +394,7 @@ def parse_photographer_output(
             confidence,
             "INVALID_MODEL_OUTPUT",
             parse_failure_type=failure,
+            json_complete=json_complete,
         )
 
     bbox, normalization_error = _normalize_bbox(values, image_width, image_height, source)
@@ -289,10 +407,22 @@ def parse_photographer_output(
             "INVALID_MODEL_OUTPUT",
             source,
             normalization_error or "UNKNOWN_PARSE_FAILURE",
+            partial_structure_used,
+            json_complete,
+            bbox_field_complete,
         )
 
     if decision is None:
         decision = "keep" if _is_full_frame(bbox) else "refine"
     elif decision == "keep" and not _is_full_frame(bbox):
         decision = "refine"
-    return ParsedComposition("success", decision, bbox, confidence, coordinate_source=source)
+    return ParsedComposition(
+        "success",
+        decision,
+        bbox,
+        confidence,
+        coordinate_source=source,
+        partial_structure_used=partial_structure_used,
+        json_complete=json_complete,
+        bbox_field_complete=bbox_field_complete,
+    )
