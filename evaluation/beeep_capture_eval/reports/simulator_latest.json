@@ -5,7 +5,7 @@
   "base_commit": "4600849d3f69c8ed370092ebad957ffb4b83ec9e",
   "implementation_commit_sha": "c9735553580c933a72a755a70e50a31faf26e5ac",
   "tested_commit_sha": null,
-  "report_generated_from_sha": "c9735553580c933a72a755a70e50a31faf26e5ac",
+  "report_generated_from_sha": "a8ba086dd06aef42623450bdf993068b43943fc3",
   "environment": "android_emulator",
   "camera_input": "fixture",
   "performance_validity": "logic_only",
