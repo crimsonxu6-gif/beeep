@@ -1,4 +1,10 @@
-import { AnalysisFailureScenario, CapturedFrame } from "@/types/frame";
+import {
+  AnalysisApiMode,
+  AnalysisFailureScenario,
+  AnalysisUploadMode,
+  CapturedFrame,
+  SimulatedNetworkProfile
+} from "@/types/frame";
 import { CompositionMode, GuidanceOutput, ModelStatus } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
 import { GuidanceParseError, parseGuidanceJson } from "./jsonParser";
@@ -32,11 +38,12 @@ export class GuidanceApiError extends Error {
 
 export interface ShutterMuseHttpClientOptions {
   endpoint: string | undefined;
+  debugEndpoint?: string;
   timeoutMs: number;
   mockEnabled: boolean;
-  apiMode?: "live" | "mock_success" | "mock_error" | "mock_timeout";
-  uploadMode?: "multipart" | "base64_json";
-  networkProfile?: "normal" | "slow" | "offline";
+  apiMode?: AnalysisApiMode;
+  uploadMode?: AnalysisUploadMode;
+  networkProfile?: SimulatedNetworkProfile;
   failureScenario?: AnalysisFailureScenario;
 }
 
@@ -65,6 +72,11 @@ function endpointOrUndefined(value?: string): string | undefined {
   if (!trimmed) return undefined;
   if (trimmed.endsWith("/guidance")) return trimmed.replace(/\/guidance$/, "/v1/analyze");
   return trimmed;
+}
+
+function debugEndpointForScenario(endpoint: string, scenario: AnalysisFailureScenario): string {
+  const separator = endpoint.includes("?") ? "&" : "?";
+  return `${endpoint}${separator}scenario=${encodeURIComponent(scenario)}`;
 }
 
 export function captureFields(input: GuidanceEngineInput, streamId: string): Record<string, unknown> {
@@ -112,7 +124,7 @@ async function jsonRequestBody(
       height: input.frame.image.height,
       mime_type: input.frame.image.mimeType,
       original_bytes: input.frame.image.originalBytes,
-      processed_bytes: input.frame.image.processedBytes
+      processed_bytes: input.frame.image.processedImageBytes
     }
   });
 }
@@ -129,7 +141,7 @@ export function multipartMetadata(
     image_width: input.frame.image.width,
     image_height: input.frame.image.height,
     original_bytes: input.frame.image.originalBytes,
-    processed_bytes: input.frame.image.processedBytes
+    processed_bytes: input.frame.image.processedImageBytes
   };
 }
 
@@ -206,12 +218,12 @@ function buildClientTiming(
   responseReceivedAt: number,
   httpStatus: number,
   uploadMode: "multipart" | "base64_json",
-  apiMode: "live" | "mock_success" | "mock_error" | "mock_timeout",
+  apiMode: AnalysisApiMode,
   serverTotalMs = 0,
-  requestBodyBytes?: number
+  estimatedRequestBodyBytes?: number
 ): NonNullable<GuidanceOutput["clientTiming"]> {
   const capture = input.frame.capture;
-  const payloadBytes = input.frame.image.processedBytes
+  const payloadBytes = input.frame.image.processedImageBytes
     ?? Math.ceil((input.frame.image.base64?.length ?? 0) * 0.75);
   const networkAndServerMs = responseReceivedAt - uploadStartedAt;
   return {
@@ -219,7 +231,7 @@ function buildClientTiming(
     captureMs: capture ? capture.captureCompletedAt - capture.captureStartedAt : 0,
     preprocessMs: capture ? capture.preprocessCompletedAt - capture.captureCompletedAt : 0,
     payloadBytes,
-    requestBodyBytes: requestBodyBytes ?? payloadBytes,
+    estimatedRequestBodyBytes: estimatedRequestBodyBytes ?? payloadBytes,
     uploadStartedAt,
     responseReceivedAt,
     networkAndServerMs,
@@ -233,7 +245,7 @@ function buildClientTiming(
     processedWidth: input.frame.image.width,
     processedHeight: input.frame.image.height,
     sourceBytes: input.frame.image.originalBytes ?? payloadBytes,
-    processedBytes: input.frame.image.processedBytes ?? payloadBytes
+    processedImageBytes: input.frame.image.processedImageBytes ?? payloadBytes
   };
 }
 
@@ -268,7 +280,7 @@ function mockFailureStatus(
   };
 }
 
-function estimateMultipartBodyBytes(
+export function estimatedMultipartRequestBodyBytes(
   input: GuidanceEngineInput,
   streamId: string,
   uploadStartedAt: number
@@ -279,7 +291,7 @@ function estimateMultipartBodyBytes(
     if (value === undefined) return total;
     return total + encoder.encode(`${key}${String(value)}`).length + 96;
   }, 0);
-  return (input.frame.image.processedBytes ?? 0) + fieldBytes + 256;
+  return (input.frame.image.processedImageBytes ?? 0) + fieldBytes + 256;
 }
 
 function parseVisionFeatures(value: unknown): VisionFeatures | null {
@@ -291,10 +303,12 @@ function parseVisionFeatures(value: unknown): VisionFeatures | null {
 
 export class ShutterMuseHttpClient implements GuidanceInferenceClient {
   private readonly endpoint: string | undefined;
+  private readonly debugEndpoint: string | undefined;
   private readonly streamId = `camera_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 
   constructor(private readonly options: ShutterMuseHttpClientOptions) {
     this.endpoint = endpointOrUndefined(options.endpoint);
+    this.debugEndpoint = endpointOrUndefined(options.debugEndpoint);
   }
 
   async infer(input: GuidanceEngineInput): Promise<AnalyzeResult> {
@@ -311,7 +325,10 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
     const failureScenario = this.options.failureScenario
       ?? capture?.failureScenario
       ?? "invalid_model_output";
-    if (!this.endpoint && apiMode === "live") {
+    const requestEndpoint = apiMode === "live_debug"
+      ? this.debugEndpoint && debugEndpointForScenario(this.debugEndpoint, failureScenario)
+      : this.endpoint;
+    if (!requestEndpoint && (apiMode === "live" || apiMode === "live_debug")) {
       if (this.options.mockEnabled && apiMode === "live") {
         const guidance = createMockGuidance(input.frame.frameId);
         return { guidance, visionFeatures: null };
@@ -329,10 +346,10 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
     const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
     try {
       const uploadStartedAt = Date.now();
-      if (networkProfile === "offline") {
+      if (networkProfile === "simulated_offline_before_fetch") {
         throw new TypeError("Simulated offline network");
       }
-      if (networkProfile === "slow") {
+      if (networkProfile === "simulated_pre_request_delay") {
         await wait(2500, controller.signal);
       }
       if (apiMode === "mock_timeout") {
@@ -348,7 +365,7 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
       const body = useMultipart
         ? multipartRequestBody(input, this.streamId, uploadStartedAt)
         : await jsonRequestBody(input, this.streamId, uploadStartedAt);
-      const response = await fetch(this.endpoint!, {
+      const response = await fetch(requestEndpoint!, {
         method: "POST",
         ...(useMultipart ? {} : { headers: { "Content-Type": "application/json" } }),
         body,
@@ -384,9 +401,9 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
       }
       const raw = JSON.parse(text) as unknown;
       const guidance = parseGuidanceJson(text);
-      const payloadBytes = input.frame.image.processedBytes ?? Math.ceil((input.frame.image.base64?.length ?? 0) * 0.75);
-      const requestBodyBytes = useMultipart
-        ? estimateMultipartBodyBytes(input, this.streamId, uploadStartedAt)
+      const payloadBytes = input.frame.image.processedImageBytes ?? Math.ceil((input.frame.image.base64?.length ?? 0) * 0.75);
+      const estimatedRequestBodyBytes = useMultipart
+        ? estimatedMultipartRequestBodyBytes(input, this.streamId, uploadStartedAt)
         : typeof body === "string" ? new TextEncoder().encode(body).length : payloadBytes;
       guidance.coordinateContext = {
         imageWidth: input.frame.image.width,
@@ -406,7 +423,7 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
         useMultipart ? "multipart" : "base64_json",
         apiMode,
         guidance.timing.totalMs,
-        requestBodyBytes
+        estimatedRequestBodyBytes
       );
       return {
         guidance,

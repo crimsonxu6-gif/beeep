@@ -117,8 +117,25 @@ export function useAnalysisFixtureController(
       }
     );
     setProcessedPreviewUri(frame.image.uri ?? null);
+    if (__DEV__) {
+      console.info("BEEEP_FIXTURE_PREPROCESS", JSON.stringify({
+        fixtureId: sourceKind === "bundled" ? selectedFixture.id : "gallery",
+        source: source.source,
+        sourceWidth: frame.image.originalWidth,
+        sourceHeight: frame.image.originalHeight,
+        processedWidth: frame.image.width,
+        processedHeight: frame.image.height,
+        sourceBytes: frame.image.originalBytes,
+        processedImageBytes: frame.image.processedImageBytes,
+        preprocessMs: frame.capture
+          ? frame.capture.preprocessCompletedAt - frame.capture.captureCompletedAt
+          : null,
+        outputUri: frame.image.uri,
+        mimeType: frame.image.mimeType
+      }));
+    }
     return frame;
-  }, [settings, source]);
+  }, [selectedFixture.id, settings, source, sourceKind]);
 
   const clear = useCallback(() => {
     setProcessedPreviewUri(null);

@@ -141,7 +141,7 @@ export interface GuidanceOutput {
     captureMs: number;
     preprocessMs: number;
     payloadBytes: number;
-    requestBodyBytes: number;
+    estimatedRequestBodyBytes: number;
     uploadStartedAt: number;
     responseReceivedAt: number;
     overlayRenderedAt?: number;
@@ -151,14 +151,14 @@ export interface GuidanceOutput {
     tapToOverlayMs?: number;
     httpStatus: number;
     uploadMode: "multipart" | "base64_json";
-    apiMode: "live" | "mock_success" | "mock_error" | "mock_timeout";
+    apiMode: "live" | "live_debug" | "mock_success" | "mock_error" | "mock_timeout";
     captureSource: "camera" | "fixture" | "gallery";
     sourceWidth: number;
     sourceHeight: number;
     processedWidth: number;
     processedHeight: number;
     sourceBytes: number;
-    processedBytes: number;
+    processedImageBytes: number;
   };
 }
 

@@ -87,7 +87,7 @@ export class AnalysisFrameController {
       height: processed.height,
       mimeType: "image/jpeg",
       originalBytes: original.size,
-      processedBytes: processedFile.size,
+      processedImageBytes: processedFile.size,
       originalWidth: source.width,
       originalHeight: source.height
     };

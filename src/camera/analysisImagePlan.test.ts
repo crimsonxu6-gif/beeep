@@ -26,4 +26,9 @@ describe("analysis image plan", () => {
   it("does not upscale a small analysis image", () => {
     expect(buildAnalysisImagePlan(640, 900, 768, 0.7).resize).toEqual({ width: 640 });
   });
+
+  it("uses the real short edge for landscape and 12 MP fixtures", () => {
+    expect(buildAnalysisImagePlan(1280, 960, 768, 0.7).resize).toEqual({ height: 768 });
+    expect(buildAnalysisImagePlan(3024, 4032, 768, 0.7).resize).toEqual({ width: 768 });
+  });
 });

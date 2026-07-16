@@ -26,6 +26,8 @@ class Settings:
     max_image_edge: int = int(os.getenv("MAX_IMAGE_EDGE", "1600"))
     max_image_pixels: int = int(os.getenv("MAX_IMAGE_PIXELS", "2000000"))
     api_key: str = os.getenv("BEEEP_API_KEY", "")
+    debug_analyze_endpoint_enabled: bool = _bool("DEBUG_ANALYZE_ENDPOINT_ENABLED", False)
+    debug_analyze_delay_ms: int = int(os.getenv("DEBUG_ANALYZE_DELAY_MS", "2500"))
     vision_timeout_ms: int = int(os.getenv("VISION_TIMEOUT_MS", "1000"))
     guidance_timeout_ms: int = int(os.getenv("GUIDANCE_TIMEOUT_MS", "17000"))
     shuttermuse_service_url: str = os.getenv("SHUTTERMUSE_SERVICE_URL", "http://127.0.0.1:8100").rstrip("/")

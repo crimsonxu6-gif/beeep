@@ -3,13 +3,52 @@
   "real_device_camera_validation": false,
   "test_date": "2026-07-16",
   "base_commit": "4600849d3f69c8ed370092ebad957ffb4b83ec9e",
+  "implementation_commit_sha": "c9735553580c933a72a755a70e50a31faf26e5ac",
+  "tested_commit_sha": null,
+  "report_generated_from_sha": "c9735553580c933a72a755a70e50a31faf26e5ac",
   "environment": "android_emulator",
   "camera_input": "fixture",
   "performance_validity": "logic_only",
-  "android_emulator": { "model": null, "api_level": null, "status": "NOT_RUN", "reason": "Android SDK, ADB, and Emulator are not installed on this workstation" },
-  "app_build": { "type": "development", "native_prebuild": "PASS", "native_prebuild_temp_override": true, "android_js_bundle": "PASS", "bundle_modules": 2536, "bundle_hbc_bytes_approx": 3600000, "install": "NOT_RUN", "launch": "NOT_RUN", "run_error": "ANDROID_SDK_AND_ADB_MISSING" },
-  "fixtures": { "count": 6, "source_kind": "ai_generated", "bundled_manifest": "assets/analysis-fixtures/manifest.json" },
-  "fixture_preprocess_expectation": { "source_dimensions": "960x1280", "processed_dimensions": "768x1024", "short_edge": 768, "jpeg_quality": 0.7, "native_processed_bytes": null, "status": "NOT_RUN" },
+  "android_studio": {
+    "version": "2026.1.2",
+    "install_path": "C:/Program Files/Android/Android Studio"
+  },
+  "android_sdk": {
+    "path": "D:/Android/Sdk",
+    "adb_version": "37.0.0-14910828",
+    "emulator_version": "36.6.11.0"
+  },
+  "android_emulator": {
+    "model": "Pixel 7",
+    "avd_name": "Beeep_Pixel_7_API_34",
+    "api_level": 34,
+    "abi": "x86_64",
+    "resolution": "1080x2400",
+    "status": "NOT_RUN",
+    "reason": "HYPERVISOR_DRIVER_REQUIRES_ADMIN_APPROVAL"
+  },
+  "app_build": {
+    "type": "development",
+    "native_prebuild": "PASS",
+    "native_prebuild_temp_override": true,
+    "gradle_build": "PASS",
+    "android_js_bundle": "PASS",
+    "bundle_modules": 2538,
+    "bundle_hbc_bytes_approx": 3600000,
+    "apk_path": "android/app/build/outputs/apk/debug/app-debug.apk",
+    "apk_bytes": 188374933,
+    "install": "NOT_RUN",
+    "launch": "NOT_RUN",
+    "run_error": "HYPERVISOR_DRIVER_REQUIRES_ADMIN_APPROVAL"
+  },
+  "fixtures": { "count": 8, "source_kind": "ai_generated", "bundled_manifest": "assets/analysis-fixtures/manifest.json" },
+  "fixture_preprocess_expectation": { "source_dimensions": "mixed", "processed_dimensions": "short edge 768", "short_edge": 768, "jpeg_quality": 0.7, "native_processed_bytes": null, "status": "NOT_RUN" },
+  "host_http_debug_validation": {
+    "status": "PASS",
+    "android_fetch_validation": false,
+    "statuses": [200, 422, 500, 502, 503, 504],
+    "scenarios": ["success", "delayed_success", "invalid_json", "missing_bbox", "bbox_safety_rejected", "http_500", "http_502", "http_503", "http_504"]
+  },
   "automated_validation": {
     "fixture_registry": "PASS",
     "unified_source_processing": "PASS",
@@ -27,7 +66,7 @@
     "tap_to_overlay_instrumentation": "PASS"
   },
   "native_results": {
-    "image_preprocess_success": { "passed": 0, "total": 6, "status": "NOT_RUN" },
+    "image_preprocess_success": { "passed": 0, "total": 8, "status": "NOT_RUN" },
     "multipart_upload_success": { "passed": 0, "total": 1, "status": "NOT_RUN" },
     "api_success": 0,
     "api_failure": 0,
@@ -42,7 +81,7 @@
     "tap_to_overlay": { "status": "NOT_RUN", "validity": "logic_only", "samples": [] }
   },
   "scenario_summary": { "total": 12, "pass": 0, "fail": 0, "not_run": 12 },
-  "automated_test_summary": { "frontend": 53, "backend_and_evaluation": 74, "model_service": 51, "total": 178, "status": "PASS" },
+  "automated_test_summary": { "frontend": 60, "backend_and_evaluation": 82, "model_service": 51, "total": 193, "status": "PASS" },
   "device_required": [
     "real expo-camera capture",
     "real EXIF and sensor orientation",

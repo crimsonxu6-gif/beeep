@@ -5,6 +5,8 @@ import sideProfile from "../../assets/analysis-fixtures/side-profile.jpg";
 import backView from "../../assets/analysis-fixtures/back-view.jpg";
 import groupEdge from "../../assets/analysis-fixtures/group-edge.jpg";
 import lookingDown from "../../assets/analysis-fixtures/looking-down.jpg";
+import landscapeGroup from "../../assets/analysis-fixtures/landscape-group.jpg";
+import largePortrait from "../../assets/analysis-fixtures/large-portrait.jpg";
 
 import { AnalysisSourceFrame, CameraFacing, DeviceOrientation } from "@/types/frame";
 
@@ -15,15 +17,20 @@ export interface AnalysisFixture {
   cameraFacing: CameraFacing;
   mirrored: boolean;
   orientation: DeviceOrientation;
+  width: number;
+  height: number;
+  bytes: number;
 }
 
 export const ANALYSIS_FIXTURES: readonly AnalysisFixture[] = [
-  { id: "front_portrait", label: "正面半身", module: frontPortrait, cameraFacing: "back", mirrored: false, orientation: "portrait" },
-  { id: "full_body", label: "远距离全身", module: fullBodyDistant, cameraFacing: "back", mirrored: false, orientation: "portrait" },
-  { id: "side_profile", label: "侧脸", module: sideProfile, cameraFacing: "back", mirrored: false, orientation: "portrait" },
-  { id: "back_view", label: "背影", module: backView, cameraFacing: "back", mirrored: false, orientation: "portrait" },
-  { id: "group_edge", label: "多人边缘", module: groupEdge, cameraFacing: "back", mirrored: false, orientation: "portrait" },
-  { id: "looking_down", label: "低头人物", module: lookingDown, cameraFacing: "back", mirrored: false, orientation: "portrait" }
+  { id: "front_portrait", label: "正面半身", module: frontPortrait, cameraFacing: "back", mirrored: false, orientation: "portrait", width: 960, height: 1280, bytes: 156696 },
+  { id: "full_body", label: "远距离全身", module: fullBodyDistant, cameraFacing: "back", mirrored: false, orientation: "portrait", width: 960, height: 1280, bytes: 190234 },
+  { id: "side_profile", label: "侧脸", module: sideProfile, cameraFacing: "back", mirrored: false, orientation: "portrait", width: 960, height: 1280, bytes: 167607 },
+  { id: "back_view", label: "背影", module: backView, cameraFacing: "back", mirrored: false, orientation: "portrait", width: 960, height: 1280, bytes: 364802 },
+  { id: "group_edge", label: "多人边缘", module: groupEdge, cameraFacing: "back", mirrored: false, orientation: "portrait", width: 960, height: 1280, bytes: 196838 },
+  { id: "looking_down", label: "低头人物", module: lookingDown, cameraFacing: "back", mirrored: false, orientation: "portrait", width: 960, height: 1280, bytes: 124606 },
+  { id: "landscape_group", label: "横图多人", module: landscapeGroup, cameraFacing: "back", mirrored: false, orientation: "landscape_right", width: 1280, height: 960, bytes: 284595 },
+  { id: "large_portrait", label: "高分辨率人像", module: largePortrait, cameraFacing: "back", mirrored: false, orientation: "portrait", width: 3024, height: 4032, bytes: 1174344 }
 ] as const;
 
 export async function bundledFixtureSource(

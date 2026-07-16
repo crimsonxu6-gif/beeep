@@ -20,7 +20,7 @@ export interface GuidanceDebugState {
   captureMs: number | null;
   preprocessMs: number | null;
   payloadBytes: number | null;
-  requestBodyBytes: number | null;
+  estimatedRequestBodyBytes: number | null;
   networkAndServerMs: number | null;
   clientNetworkOverheadMs: number | null;
   renderMs: number | null;
@@ -32,7 +32,7 @@ export interface GuidanceDebugState {
   sourceDimensions: string | null;
   processedDimensions: string | null;
   sourceBytes: number | null;
-  processedBytes: number | null;
+  processedImageBytes: number | null;
 }
 
 interface GuidancePipelineOptions {
@@ -65,7 +65,7 @@ const EMPTY_DEBUG: GuidanceDebugState = {
   captureMs: null,
   preprocessMs: null,
   payloadBytes: null,
-  requestBodyBytes: null,
+  estimatedRequestBodyBytes: null,
   networkAndServerMs: null,
   clientNetworkOverheadMs: null,
   renderMs: null,
@@ -77,7 +77,7 @@ const EMPTY_DEBUG: GuidanceDebugState = {
   sourceDimensions: null,
   processedDimensions: null,
   sourceBytes: null,
-  processedBytes: null
+  processedImageBytes: null
 };
 
 export class GuidancePipeline {
@@ -146,7 +146,7 @@ export class GuidancePipeline {
         captureMs: guidance.clientTiming?.captureMs ?? null,
         preprocessMs: guidance.clientTiming?.preprocessMs ?? null,
         payloadBytes: guidance.clientTiming?.payloadBytes ?? null,
-        requestBodyBytes: guidance.clientTiming?.requestBodyBytes ?? null,
+        estimatedRequestBodyBytes: guidance.clientTiming?.estimatedRequestBodyBytes ?? null,
         networkAndServerMs: guidance.clientTiming?.networkAndServerMs ?? null,
         clientNetworkOverheadMs: guidance.clientTiming?.clientNetworkOverheadMs ?? null,
         renderMs: null,
@@ -158,7 +158,7 @@ export class GuidancePipeline {
         sourceDimensions: guidance.clientTiming ? `${guidance.clientTiming.sourceWidth}x${guidance.clientTiming.sourceHeight}` : null,
         processedDimensions: guidance.clientTiming ? `${guidance.clientTiming.processedWidth}x${guidance.clientTiming.processedHeight}` : null,
         sourceBytes: guidance.clientTiming?.sourceBytes ?? null,
-        processedBytes: guidance.clientTiming?.processedBytes ?? null
+        processedImageBytes: guidance.clientTiming?.processedImageBytes ?? null
       };
       this.syncGuardDebug();
       if (!reliable) return;

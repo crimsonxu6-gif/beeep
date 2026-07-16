@@ -51,7 +51,7 @@ describe("unified analysis source processing", () => {
       height: 1024,
       mimeType: "image/jpeg",
       originalBytes: 260_000,
-      processedBytes: 82_000,
+      processedImageBytes: 82_000,
       originalWidth: 960,
       originalHeight: 1280
     });

@@ -34,6 +34,12 @@ for logs/debugging while returning deterministic user-facing `message`, `suggest
 `retryable` and `severity`. `MODEL_BUSY` and `MODEL_LOADING` are waiting states rather
 than severe errors.
 
+For Android Emulator HTTP error validation, development/test environments can explicitly set
+`DEBUG_ANALYZE_ENDPOINT_ENABLED=1` and call `POST /v1/debug/analyze-response`. The hidden endpoint
+returns real HTTP 500/502/503/504 responses, invalid JSON, missing-bbox success responses, delayed
+success, or bbox safety errors without touching `/v1/analyze`. It is not registered when
+`APP_ENV=production`, even if the flag is set.
+
 Preflight controls:
 
 ```env

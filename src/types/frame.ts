@@ -5,17 +5,27 @@ export interface FrameImage {
   height: number;
   mimeType: "image/jpeg" | string;
   originalBytes?: number;
-  processedBytes?: number;
+  processedImageBytes?: number;
   originalWidth?: number;
   originalHeight?: number;
 }
 
 export type CameraFacing = "front" | "back" | "unknown";
 export type AnalysisFrameSource = "camera" | "fixture" | "gallery";
-export type AnalysisApiMode = "live" | "mock_success" | "mock_error" | "mock_timeout";
+export type AnalysisApiMode =
+  | "live"
+  | "live_debug"
+  | "mock_success"
+  | "mock_error"
+  | "mock_timeout";
 export type AnalysisUploadMode = "multipart" | "base64_json";
-export type SimulatedNetworkProfile = "normal" | "slow" | "offline";
+export type SimulatedNetworkProfile =
+  | "normal"
+  | "simulated_pre_request_delay"
+  | "simulated_offline_before_fetch";
 export type AnalysisFailureScenario =
+  | "success"
+  | "delayed_success"
   | "invalid_model_output"
   | "http_500"
   | "http_502"

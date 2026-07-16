@@ -60,9 +60,10 @@ export function GuidanceDebugPanel({
       <Text style={styles.line}>Stale dropped: {debugState.droppedStaleResultCount}</Text>
       <Text style={styles.line}>Timing P/V/G/T: {guidance?.timing.preflightMs ?? "-"}/{debugState.visionLatencyMs ?? "-"}/{debugState.guidanceLatencyMs ?? "-"}/{debugState.totalLatencyMs ?? "-"}ms</Text>
       <Text style={styles.line}>Capture/Preprocess: {debugState.captureMs ?? "-"}/{debugState.preprocessMs ?? "-"}ms</Text>
-      <Text style={styles.line}>Payload/Body: {debugState.payloadBytes ?? "-"}/{debugState.requestBodyBytes ?? "-"} bytes</Text>
+      <Text style={styles.line}>Processed image: {debugState.payloadBytes ?? "-"} bytes</Text>
+      <Text style={styles.line}>Estimated request: {debugState.estimatedRequestBodyBytes ?? "-"} bytes</Text>
       <Text style={styles.line}>Source: {debugState.captureSource ?? "-"} {debugState.sourceDimensions ?? "-"} / {debugState.sourceBytes ?? "-"} bytes</Text>
-      <Text style={styles.line}>Processed: {debugState.processedDimensions ?? "-"} / {debugState.processedBytes ?? "-"} bytes</Text>
+      <Text style={styles.line}>Processed: {debugState.processedDimensions ?? "-"} / {debugState.processedImageBytes ?? "-"} bytes</Text>
       <Text style={styles.line}>Transport: {debugState.uploadMode ?? "-"} / {debugState.apiMode ?? "-"} / HTTP {debugState.httpStatus ?? "-"}</Text>
       <Text style={styles.line}>Resize/JPEG: {appConfig.analysisImageShortEdge} / {appConfig.analysisJpegQuality}</Text>
       <Text style={styles.line}>Upload+server/Server: {debugState.networkAndServerMs ?? "-"}/{guidance?.timing.totalMs ?? "-"}ms</Text>

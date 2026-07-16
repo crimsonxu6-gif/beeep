@@ -23,6 +23,8 @@ it("keeps fixture and mock API modes disabled in production", () => {
   expect(analysisFixtureEnabled(false, "1")).toBe(false);
   expect(analysisFixtureEnabled(true, "1")).toBe(true);
   expect(analysisApiModeFromEnv(false, "mock_success")).toBe("live");
+  expect(analysisApiModeFromEnv(false, "live_debug")).toBe("live");
+  expect(analysisApiModeFromEnv(true, "live_debug")).toBe("live_debug");
   expect(analysisApiModeFromEnv(true, "mock_success")).toBe("mock_success");
   expect(analysisApiModeFromEnv(true, "invalid")).toBe("live");
   expect(analysisFixtureSourceFromEnv("gallery")).toBe("gallery");

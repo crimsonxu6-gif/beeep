@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   GuidanceEngineInput,
+  estimatedMultipartRequestBodyBytes,
   multipartImagePart,
   multipartMetadata,
   ShutterMuseHttpClient
@@ -98,7 +99,7 @@ describe("ShutterMuseHttpClient model status", () => {
       endpoint: "http://test/v1/analyze",
       timeoutMs: 100,
       mockEnabled: false,
-      networkProfile: "offline"
+      networkProfile: "simulated_offline_before_fetch"
     });
     await expect(client.infer(input)).rejects.toMatchObject({ status: { code: "NETWORK_ERROR" } });
   });
@@ -107,6 +108,61 @@ describe("ShutterMuseHttpClient model status", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("not-json", { status: 200 })));
     const client = new ShutterMuseHttpClient({ endpoint: "http://test/v1/analyze", timeoutMs: 1000, mockEnabled: false });
     await expect(client.infer(input)).rejects.toMatchObject({ status: { code: "INVALID_MODEL_OUTPUT" } });
+  });
+
+  it.each([500, 502, 503, 504])(
+    "maps a real debug HTTP %s response without using the client mock path",
+    async (statusCode) => {
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+        status: "error",
+        error: {
+          code: `HTTP_${statusCode}`,
+          message: "AI 暂时无法使用",
+          suggestion: "可以稍后再试",
+          retryable: true
+        }
+      }), { status: statusCode }));
+      vi.stubGlobal("fetch", fetchMock);
+      const client = new ShutterMuseHttpClient({
+        endpoint: "http://test/v1/analyze",
+        debugEndpoint: "http://test/v1/debug/analyze-response",
+        timeoutMs: 1000,
+        mockEnabled: false,
+        apiMode: "live_debug",
+        failureScenario: `http_${statusCode}` as "http_500"
+      });
+
+      await expect(client.infer(input)).rejects.toMatchObject({
+        status: { code: `HTTP_${statusCode}` }
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        `http://test/v1/debug/analyze-response?scenario=http_${statusCode}`,
+        expect.any(Object)
+      );
+    }
+  );
+
+  it("accepts a real debug response without a bbox and does not invent an overlay", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      request_id: "req_debug",
+      frame_id: 1,
+      status: "success",
+      actions: [{ type: "framing_hint", message: "暂时没有构图框" }],
+      summary: "missing bbox",
+      confidence: 0.5,
+      timing: { vision_ms: 0, guidance_ms: 0, total_ms: 0 }
+    }), { status: 200 })));
+    const client = new ShutterMuseHttpClient({
+      endpoint: "http://test/v1/analyze",
+      debugEndpoint: "http://test/v1/debug/analyze-response",
+      timeoutMs: 1000,
+      mockEnabled: false,
+      apiMode: "live_debug",
+      failureScenario: "missing_bbox"
+    });
+
+    const result = await client.infer(input);
+    expect(result.guidance.composition).toBeUndefined();
   });
 });
 
@@ -122,7 +178,7 @@ describe("analysis multipart request", () => {
         height: 1024,
         mimeType: "image/jpeg",
         originalBytes: 250000,
-        processedBytes: 88000
+        processedImageBytes: 88000
       },
       capture: {
         source: "fixture",
@@ -163,5 +219,7 @@ describe("analysis multipart request", () => {
       image_height: 1024,
       upload_mode: "multipart"
     });
+    expect(multipartInput.frame.image.processedImageBytes).toBe(88000);
+    expect(estimatedMultipartRequestBodyBytes(multipartInput, "fixture_stream", 125)).toBeGreaterThan(88000);
   });
 });

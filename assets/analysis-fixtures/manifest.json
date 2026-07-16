@@ -4,5 +4,7 @@
   { "id": "side_profile", "file": "side-profile.jpg", "label": "侧脸", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 167607, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" },
   { "id": "back_view", "file": "back-view.jpg", "label": "背影", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 364802, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" },
   { "id": "group_edge", "file": "group-edge.jpg", "label": "多人边缘", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 196838, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" },
-  { "id": "looking_down", "file": "looking-down.jpg", "label": "低头人物", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 124606, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" }
+  { "id": "looking_down", "file": "looking-down.jpg", "label": "低头人物", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 124606, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" },
+  { "id": "landscape_group", "file": "landscape-group.jpg", "label": "横图多人", "sourceKind": "ai_generated", "width": 1280, "height": 960, "bytes": 284595, "cameraFacing": "back", "mirrored": false, "orientation": "landscape_right" },
+  { "id": "large_portrait", "file": "large-portrait.jpg", "label": "高分辨率人像", "sourceKind": "ai_generated", "width": 3024, "height": 4032, "bytes": 1174344, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" }
 ]

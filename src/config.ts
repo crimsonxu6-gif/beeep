@@ -14,7 +14,7 @@ function clamp(value: number, min: number, max: number): number {
 
 export type GuidanceTriggerMode = "manual" | "stable_auto" | "continuous";
 export type AnalysisUploadMode = "multipart" | "base64_json";
-export type AnalysisApiMode = "live" | "mock_success" | "mock_error" | "mock_timeout";
+export type AnalysisApiMode = "live" | "live_debug" | "mock_success" | "mock_error" | "mock_timeout";
 export type AnalysisFixtureSource = "bundled" | "gallery";
 
 export function guidanceTriggerModeFromEnv(value: string | undefined): GuidanceTriggerMode {
@@ -31,7 +31,7 @@ export function analysisUploadModeFromEnv(value: string | undefined): AnalysisUp
 
 export function analysisApiModeFromEnv(isDev: boolean, value: string | undefined): AnalysisApiMode {
   if (!isDev) return "live";
-  return value === "mock_success" || value === "mock_error" || value === "mock_timeout"
+  return value === "live_debug" || value === "mock_success" || value === "mock_error" || value === "mock_timeout"
     ? value
     : "live";
 }
@@ -77,6 +77,7 @@ export const appConfig = {
   visionTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_VISION_TIMEOUT_MS", 1000), 250, 5000),
   guidanceTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_GUIDANCE_TIMEOUT_MS", 19000), 500, 30000),
   analyzeApiUrl: process.env.EXPO_PUBLIC_ANALYZE_API_URL,
+  analysisDebugApiUrl: process.env.EXPO_PUBLIC_ANALYSIS_DEBUG_API_URL,
   shutterMuseApiUrl: process.env.EXPO_PUBLIC_SHUTTERMUSE_API_URL,
   stability: {
     consistentFrames: Math.round(

@@ -39,7 +39,7 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
     captureMs: null,
     preprocessMs: null,
     payloadBytes: null,
-    requestBodyBytes: null,
+    estimatedRequestBodyBytes: null,
     networkAndServerMs: null,
     clientNetworkOverheadMs: null,
     renderMs: null,
@@ -51,7 +51,7 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
     sourceDimensions: null,
     processedDimensions: null,
     sourceBytes: null,
-    processedBytes: null
+    processedImageBytes: null
   });
   const [processing, setProcessing] = useState(false);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
@@ -65,6 +65,9 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
   const pipeline = useMemo(() => new GuidancePipeline({
     client: new ShutterMuseHttpClient({
       endpoint: appConfig.analyzeApiUrl ?? appConfig.shutterMuseApiUrl,
+      ...(appConfig.analysisDebugApiUrl
+        ? { debugEndpoint: appConfig.analysisDebugApiUrl }
+        : {}),
       timeoutMs: appConfig.guidanceTimeoutMs,
       mockEnabled: appConfig.mockEnabled
     }),

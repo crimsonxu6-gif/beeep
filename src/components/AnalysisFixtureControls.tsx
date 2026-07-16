@@ -91,16 +91,16 @@ export function AnalysisFixtureControls({
             <View style={styles.wrap}>
               <Choice value="multipart" current={settings.uploadMode} label="multipart" onSelect={(uploadMode) => onChange({ uploadMode })} />
               <Choice value="base64_json" current={settings.uploadMode} label="base64 JSON" onSelect={(uploadMode) => onChange({ uploadMode })} />
-              {(["live", "mock_success", "mock_error", "mock_timeout"] as const).map((apiMode) => <Choice key={apiMode} value={apiMode} current={settings.apiMode} label={apiMode} onSelect={(value) => onChange({ apiMode: value })} />)}
+              {(["live", "live_debug", "mock_success", "mock_error", "mock_timeout"] as const).map((apiMode) => <Choice key={apiMode} value={apiMode} current={settings.apiMode} label={apiMode} onSelect={(value) => onChange({ apiMode: value })} />)}
             </View>
 
             <Text style={styles.label}>网络</Text>
             <View style={styles.wrap}>
-              {(["normal", "slow", "offline"] as const).map((networkProfile) => <Choice key={networkProfile} value={networkProfile} current={settings.networkProfile} label={networkProfile} onSelect={(value) => onChange({ networkProfile: value })} />)}
+              {(["normal", "simulated_pre_request_delay", "simulated_offline_before_fetch"] as const).map((networkProfile) => <Choice key={networkProfile} value={networkProfile} current={settings.networkProfile} label={networkProfile} onSelect={(value) => onChange({ networkProfile: value })} />)}
             </View>
             <Text style={styles.label}>错误子场景</Text>
             <View style={styles.wrap}>
-              {(["invalid_model_output", "http_500", "http_502", "http_503", "http_504", "invalid_json", "missing_bbox", "bbox_safety_rejected"] as const).map((failureScenario) => (
+              {(["success", "delayed_success", "invalid_model_output", "http_500", "http_502", "http_503", "http_504", "invalid_json", "missing_bbox", "bbox_safety_rejected"] as const).map((failureScenario) => (
                 <Choice key={failureScenario} value={failureScenario} current={settings.failureScenario} label={failureScenario} onSelect={(value) => onChange({ failureScenario: value })} />
               ))}
             </View>

@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from api.analyze import guidance_service
 from api.analyze import router as analyze_router
+from api.debug_analyze import router as debug_analyze_router
 from api.guidance import router as guidance_router
 from core.config import settings
 from core.errors import ApiError, api_error_handler
@@ -61,6 +62,8 @@ async def request_context(request: Request, call_next):
 
 app.include_router(analyze_router)
 app.include_router(guidance_router)
+if settings.environment != "production" and settings.debug_analyze_endpoint_enabled:
+    app.include_router(debug_analyze_router)
 
 
 @app.get("/health")

@@ -165,10 +165,14 @@ EXPO_PUBLIC_DEBUG_PANEL=1
 ```
 
 `EXPO_PUBLIC_ANALYSIS_FIXTURE_SOURCE` accepts `bundled` or `gallery`.
-`EXPO_PUBLIC_ANALYSIS_API_MODE` accepts `live`, `mock_success`, `mock_error`, or
-`mock_timeout`. Fixture and mock API modes are forced off outside development. The fixture tool
+`EXPO_PUBLIC_ANALYSIS_API_MODE` accepts `live`, `live_debug`, `mock_success`, `mock_error`, or
+`mock_timeout`. `live_debug` calls the development-only backend response endpoint configured by
+`EXPO_PUBLIC_ANALYSIS_DEBUG_API_URL`. Fixture, debug, and mock API modes are forced off outside
+development. The fixture tool
 can simulate front/rear metadata, image mirroring, portrait/landscape metadata, preview ratios,
-multipart/Base64 regression, slow network, and offline recovery. Mock modes validate UI state only;
+multipart/Base64 regression, a pre-request delay, and an error before `fetch`. These network
+profiles validate UI state only; they do not simulate Android bandwidth or the Android network stack.
+Mock modes validate UI state only;
 use `live` for backend and ShutterMuse validation.
 
 Because `expo-file-system`, `expo-image-manipulator`, and `expo-asset` are native modules, Expo Go
