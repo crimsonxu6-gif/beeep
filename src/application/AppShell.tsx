@@ -18,6 +18,8 @@ import { PhotoPreviewScreen } from "@/screens/PhotoPreviewScreen";
 import { isAutomaticAnalysisEnabled } from "./analysisState";
 import { canRequestManualAnalysis } from "./analysisState";
 import { CameraFacing } from "@/types/frame";
+import { useAnalysisFixtureController } from "@/camera/useAnalysisFixtureController";
+import { AnalysisFixtureControls } from "@/components/AnalysisFixtureControls";
 
 export function AppShell() {
   const cameraRef = useRef<CameraView | null>(null);
@@ -27,6 +29,11 @@ export function AppShell() {
   const [compositionMode, setCompositionMode] = useState<CompositionMode>("auto");
   const [manualCapturePending, setManualCapturePending] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<CameraFacing>("back");
+  const [fixtureControlsOpen, setFixtureControlsOpen] = useState(false);
+  const fixture = useAnalysisFixtureController(
+    appConfig.analysisFixtureEnabled,
+    appConfig.analysisFixtureSource
+  );
   const {
     stableGuidance,
     visionFeatures,
@@ -84,9 +91,23 @@ export function AppShell() {
     setManualCapturePending(true);
     const tapTimestamp = Date.now();
     beginAnalysis();
-    const submitted = await frameSampler.captureNow(tapTimestamp);
-    setManualCapturePending(false);
-    if (!submitted) cancelAnalysis();
+    let submitted = false;
+    try {
+      if (appConfig.analysisFixtureEnabled) {
+        const frame = await fixture.captureNow(tapTimestamp);
+        if (frame) {
+          handleFrame(frame);
+          submitted = true;
+        }
+      } else {
+        submitted = await frameSampler.captureNow(tapTimestamp);
+      }
+    } catch (analysisError) {
+      console.warn(analysisError instanceof Error ? analysisError.message : String(analysisError));
+    } finally {
+      setManualCapturePending(false);
+      if (!submitted) cancelAnalysis();
+    }
   };
 
   const handleLayout = (event: LayoutChangeEvent) => {
@@ -129,7 +150,11 @@ export function AppShell() {
           } : modelStatus}
           onBack={() => setRoute("home")}
           onCapture={() => { reset(); void capture.capture(); }}
-          onOpenGallery={() => { reset(); void capture.pick(); }}
+          onOpenGallery={() => {
+            reset();
+            if (appConfig.analysisFixtureEnabled) void fixture.pickGallery();
+            else void capture.pick();
+          }}
           capturing={capture.capturing}
           analyzing={processing || manualCapturePending}
           triggerMode={appConfig.guidanceTriggerMode}
@@ -142,6 +167,22 @@ export function AppShell() {
             reset();
             setCameraFacing((current) => current === "back" ? "front" : "back");
           }}
+          fixtureEnabled={appConfig.analysisFixtureEnabled}
+          fixturePreviewUri={fixture.previewUri}
+          fixtureSettings={fixture.settings}
+          onOpenFixtureControls={() => setFixtureControlsOpen(true)}
+        />
+      ) : null}
+      {appConfig.analysisFixtureEnabled ? (
+        <AnalysisFixtureControls
+          visible={fixtureControlsOpen}
+          settings={fixture.settings}
+          fixtures={fixture.fixtures}
+          error={fixture.error}
+          onChange={(patch) => { reset(); fixture.updateSettings(patch); }}
+          onPickGallery={() => { void fixture.pickGallery(); }}
+          onClear={() => { reset(); fixture.clear(); }}
+          onClose={() => setFixtureControlsOpen(false)}
         />
       ) : null}
       {route !== "camera" && route !== "photoPreview" ? <AppBottomTabs activeRoute={route} onChange={setRoute} /> : null}

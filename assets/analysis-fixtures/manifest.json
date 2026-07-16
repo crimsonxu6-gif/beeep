@@ -1,0 +1,8 @@
+[
+  { "id": "front_portrait", "file": "front-portrait.jpg", "label": "正面半身", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 156696, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" },
+  { "id": "full_body", "file": "full-body-distant.jpg", "label": "远距离全身", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 190234, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" },
+  { "id": "side_profile", "file": "side-profile.jpg", "label": "侧脸", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 167607, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" },
+  { "id": "back_view", "file": "back-view.jpg", "label": "背影", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 364802, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" },
+  { "id": "group_edge", "file": "group-edge.jpg", "label": "多人边缘", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 196838, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" },
+  { "id": "looking_down", "file": "looking-down.jpg", "label": "低头人物", "sourceKind": "ai_generated", "width": 960, "height": 1280, "bytes": 124606, "cameraFacing": "back", "mirrored": false, "orientation": "portrait" }
+]

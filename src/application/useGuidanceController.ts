@@ -43,7 +43,15 @@ export function useGuidanceController(compositionMode: CompositionMode): Guidanc
     networkAndServerMs: null,
     clientNetworkOverheadMs: null,
     renderMs: null,
-    tapToOverlayMs: null
+    tapToOverlayMs: null,
+    httpStatus: null,
+    uploadMode: null,
+    apiMode: null,
+    captureSource: null,
+    sourceDimensions: null,
+    processedDimensions: null,
+    sourceBytes: null,
+    processedBytes: null
   });
   const [processing, setProcessing] = useState(false);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);

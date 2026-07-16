@@ -152,6 +152,36 @@ orientation-correct JPEG without Base64, resizes it proportionally to a 768 px s
 compresses it at JPEG quality 0.7, and uploads it as multipart form data. The legacy JSON Base64
 contract remains available with `EXPO_PUBLIC_ANALYSIS_UPLOAD_MODE=base64_json`.
 
+### Android emulator fixture validation
+
+Development builds can replace camera capture with a bundled or gallery fixture while preserving
+the production preprocessing, upload, parser, stability, and overlay pipeline:
+
+```env
+EXPO_PUBLIC_ENABLE_ANALYSIS_FIXTURE=1
+EXPO_PUBLIC_ANALYSIS_FIXTURE_SOURCE=bundled
+EXPO_PUBLIC_ANALYSIS_API_MODE=mock_success
+EXPO_PUBLIC_DEBUG_PANEL=1
+```
+
+`EXPO_PUBLIC_ANALYSIS_FIXTURE_SOURCE` accepts `bundled` or `gallery`.
+`EXPO_PUBLIC_ANALYSIS_API_MODE` accepts `live`, `mock_success`, `mock_error`, or
+`mock_timeout`. Fixture and mock API modes are forced off outside development. The fixture tool
+can simulate front/rear metadata, image mirroring, portrait/landscape metadata, preview ratios,
+multipart/Base64 regression, slow network, and offline recovery. Mock modes validate UI state only;
+use `live` for backend and ShutterMuse validation.
+
+Because `expo-file-system`, `expo-image-manipulator`, and `expo-asset` are native modules, Expo Go
+or Metro hot reload is insufficient after dependency changes. Use the Android development build:
+
+```powershell
+npx expo prebuild --clean --platform android
+npx expo run:android
+```
+
+See `evaluation/beeep_capture_eval/SIMULATOR_TESTING.md`. Simulator reports are explicitly marked
+`Simulator validation only` and do not replace the physical-device checklist below.
+
 The model service supports four prompt experiments through `SHUTTERMUSE_PROMPT_MODE`:
 `official`, `official_bbox_first`, `official_prefill`, and `beeep_json`. Official-mode parsing may
 recover a complete explicitly named `bbox`, `composition_bbox`, or `composition_xy` field from an

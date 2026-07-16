@@ -38,16 +38,39 @@ describe("GuidancePipeline", () => {
     const client = { infer: vi.fn(async () => { throw error; }) };
     const onError = vi.fn();
     const onStableGuidance = vi.fn();
+    const onProcessingChange = vi.fn();
     const pipeline = new GuidancePipeline({
       client,
       stabilityFilter: new StabilityFilter({ consistentFrames: 1, confidenceThreshold: 0, debounceMs: 0, expiresMs: 2500 }),
       allowedFrameLag: 1,
       expiresMs: 2500
     });
-    pipeline.setCallbacks({ onError, onStableGuidance });
+    pipeline.setCallbacks({ onError, onStableGuidance, onProcessingChange });
     pipeline.acceptFrame(frame(1), "auto");
     await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(error));
     expect(onStableGuidance).not.toHaveBeenCalled();
+    expect(onProcessingChange).toHaveBeenLastCalledWith(false);
     pipeline.dispose();
+  });
+
+  it("does not update UI when a response arrives after disposal", async () => {
+    let resolveRequest: ((value: AnalyzeResult) => void) | undefined;
+    const client = {
+      infer: vi.fn(() => new Promise<AnalyzeResult>((resolve) => { resolveRequest = resolve; }))
+    };
+    const onStableGuidance = vi.fn();
+    const pipeline = new GuidancePipeline({
+      client,
+      stabilityFilter: new StabilityFilter({ consistentFrames: 1, confidenceThreshold: 0, debounceMs: 0, expiresMs: 2500 }),
+      allowedFrameLag: 1,
+      expiresMs: 2500
+    });
+    pipeline.setCallbacks({ onStableGuidance });
+    pipeline.acceptFrame(frame(1), "auto");
+    pipeline.dispose();
+    onStableGuidance.mockClear();
+    resolveRequest?.(result(1));
+    await Promise.resolve();
+    expect(onStableGuidance).not.toHaveBeenCalled();
   });
 });

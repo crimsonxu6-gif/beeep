@@ -35,6 +35,9 @@
         "projectId": "d299e567-a87b-4c2f-a73e-7a4e3a2c6e15"
       }
     },
-    "owner": "crimson054"
+    "owner": "crimson054",
+    "plugins": [
+      "expo-asset"
+    ]
   }
 }

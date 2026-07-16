@@ -25,6 +25,14 @@ export interface GuidanceDebugState {
   clientNetworkOverheadMs: number | null;
   renderMs: number | null;
   tapToOverlayMs: number | null;
+  httpStatus: number | null;
+  uploadMode: string | null;
+  apiMode: string | null;
+  captureSource: string | null;
+  sourceDimensions: string | null;
+  processedDimensions: string | null;
+  sourceBytes: number | null;
+  processedBytes: number | null;
 }
 
 interface GuidancePipelineOptions {
@@ -61,7 +69,15 @@ const EMPTY_DEBUG: GuidanceDebugState = {
   networkAndServerMs: null,
   clientNetworkOverheadMs: null,
   renderMs: null,
-  tapToOverlayMs: null
+  tapToOverlayMs: null,
+  httpStatus: null,
+  uploadMode: null,
+  apiMode: null,
+  captureSource: null,
+  sourceDimensions: null,
+  processedDimensions: null,
+  sourceBytes: null,
+  processedBytes: null
 };
 
 export class GuidancePipeline {
@@ -134,7 +150,15 @@ export class GuidancePipeline {
         networkAndServerMs: guidance.clientTiming?.networkAndServerMs ?? null,
         clientNetworkOverheadMs: guidance.clientTiming?.clientNetworkOverheadMs ?? null,
         renderMs: null,
-        tapToOverlayMs: null
+        tapToOverlayMs: null,
+        httpStatus: guidance.clientTiming?.httpStatus ?? null,
+        uploadMode: guidance.clientTiming?.uploadMode ?? null,
+        apiMode: guidance.clientTiming?.apiMode ?? null,
+        captureSource: guidance.clientTiming?.captureSource ?? null,
+        sourceDimensions: guidance.clientTiming ? `${guidance.clientTiming.sourceWidth}x${guidance.clientTiming.sourceHeight}` : null,
+        processedDimensions: guidance.clientTiming ? `${guidance.clientTiming.processedWidth}x${guidance.clientTiming.processedHeight}` : null,
+        sourceBytes: guidance.clientTiming?.sourceBytes ?? null,
+        processedBytes: guidance.clientTiming?.processedBytes ?? null
       };
       this.syncGuardDebug();
       if (!reliable) return;

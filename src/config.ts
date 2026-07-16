@@ -14,6 +14,8 @@ function clamp(value: number, min: number, max: number): number {
 
 export type GuidanceTriggerMode = "manual" | "stable_auto" | "continuous";
 export type AnalysisUploadMode = "multipart" | "base64_json";
+export type AnalysisApiMode = "live" | "mock_success" | "mock_error" | "mock_timeout";
+export type AnalysisFixtureSource = "bundled" | "gallery";
 
 export function guidanceTriggerModeFromEnv(value: string | undefined): GuidanceTriggerMode {
   return value === "stable_auto" || value === "continuous" ? value : "manual";
@@ -25,6 +27,21 @@ export function isMockEnabled(isDev: boolean, value: string | undefined): boolea
 
 export function analysisUploadModeFromEnv(value: string | undefined): AnalysisUploadMode {
   return value === "base64_json" ? "base64_json" : "multipart";
+}
+
+export function analysisApiModeFromEnv(isDev: boolean, value: string | undefined): AnalysisApiMode {
+  if (!isDev) return "live";
+  return value === "mock_success" || value === "mock_error" || value === "mock_timeout"
+    ? value
+    : "live";
+}
+
+export function analysisFixtureEnabled(isDev: boolean, value: string | undefined): boolean {
+  return isDev && value === "1";
+}
+
+export function analysisFixtureSourceFromEnv(value: string | undefined): AnalysisFixtureSource {
+  return value === "gallery" ? "gallery" : "bundled";
 }
 
 const runtimeIsDev = typeof __DEV__ !== "undefined" && __DEV__;
@@ -44,6 +61,17 @@ export const appConfig = {
   ),
   analysisUploadMode: analysisUploadModeFromEnv(
     process.env.EXPO_PUBLIC_ANALYSIS_UPLOAD_MODE
+  ),
+  analysisApiMode: analysisApiModeFromEnv(
+    runtimeIsDev,
+    process.env.EXPO_PUBLIC_ANALYSIS_API_MODE
+  ),
+  analysisFixtureEnabled: analysisFixtureEnabled(
+    runtimeIsDev,
+    process.env.EXPO_PUBLIC_ENABLE_ANALYSIS_FIXTURE
+  ),
+  analysisFixtureSource: analysisFixtureSourceFromEnv(
+    process.env.EXPO_PUBLIC_ANALYSIS_FIXTURE_SOURCE
   ),
   sampleFps: clamp(numberFromEnv("EXPO_PUBLIC_SAMPLE_FPS", 0.75), 0.5, 1),
   visionTimeoutMs: clamp(numberFromEnv("EXPO_PUBLIC_VISION_TIMEOUT_MS", 1000), 250, 5000),

@@ -1,6 +1,7 @@
 import { RefObject } from "react";
 import {
   ActivityIndicator,
+  Image,
   LayoutChangeEvent,
   Pressable,
   StyleSheet,
@@ -8,7 +9,7 @@ import {
   View
 } from "react-native";
 import { CameraView, PermissionResponse } from "expo-camera";
-import { Aperture, Camera, ChevronLeft, Images, SwitchCamera } from "lucide-react-native";
+import { Aperture, Camera, ChevronLeft, FlaskConical, Images, SwitchCamera } from "lucide-react-native";
 
 import { GuidanceOverlay, OverlaySize } from "@/components/GuidanceOverlay";
 import { ModelStatus, StableGuidance } from "@/types/guidance";
@@ -18,6 +19,7 @@ import { CompositionMode } from "@/types/guidance";
 import { GuidanceDebugState } from "@/ai_engine/guidancePipeline";
 import { GuidanceTriggerMode } from "@/config";
 import { CameraFacing } from "@/types/frame";
+import { FixtureSessionSettings, previewAspectRatio } from "@/camera/fixtureSession";
 
 interface CameraWorkspaceProps {
   cameraRef: RefObject<CameraView | null>;
@@ -42,6 +44,10 @@ interface CameraWorkspaceProps {
   debugState: GuidanceDebugState;
   cameraFacing: CameraFacing;
   onToggleCamera: () => void;
+  fixtureEnabled: boolean;
+  fixturePreviewUri: string | null;
+  fixtureSettings: FixtureSessionSettings;
+  onOpenFixtureControls: () => void;
 }
 
 export function CameraWorkspace({
@@ -66,23 +72,38 @@ export function CameraWorkspace({
   onCompositionModeChange,
   debugState,
   cameraFacing,
-  onToggleCamera
+  onToggleCamera,
+  fixtureEnabled,
+  fixturePreviewUri,
+  fixtureSettings,
+  onOpenFixtureControls
 }: CameraWorkspaceProps) {
-  const granted = Boolean(permission?.granted);
+  const granted = fixtureEnabled || Boolean(permission?.granted);
+  const fixtureAspectRatio = previewAspectRatio(
+    fixtureSettings.previewRatio,
+    fixtureSettings.deviceOrientation
+  );
 
   return (
-    <View style={styles.root} onLayout={onLayout}>
+    <View style={styles.root}>
       {granted ? (
-        <>
-          <CameraView
-            ref={cameraRef}
-            style={StyleSheet.absoluteFill}
-            facing={cameraFacing === "front" ? "front" : "back"}
-            mirror={cameraFacing === "front"}
-            flash="off"
-            enableTorch={false}
-            animateShutter={false}
-          />
+        <View
+          style={fixtureEnabled ? [styles.fixtureViewport, { aspectRatio: fixtureAspectRatio }] : StyleSheet.absoluteFill}
+          onLayout={onLayout}
+        >
+          {fixtureEnabled ? (
+            fixturePreviewUri ? <Image source={{ uri: fixturePreviewUri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <ActivityIndicator color={colors.white} />
+          ) : (
+            <CameraView
+              ref={cameraRef}
+              style={StyleSheet.absoluteFill}
+              facing={cameraFacing === "front" ? "front" : "back"}
+              mirror={cameraFacing === "front"}
+              flash="off"
+              enableTorch={false}
+              animateShutter={false}
+            />
+          )}
           <GuidanceOverlay
             stableGuidance={stableGuidance}
             visionFeatures={visionFeatures}
@@ -92,8 +113,9 @@ export function CameraWorkspace({
             modelStatus={modelStatus}
             debugState={debugState}
             compositionMode={compositionMode}
+            coordinateDebug={fixtureEnabled}
           />
-        </>
+        </View>
       ) : (
         <View style={styles.permissionSurface}>
           {!permission ? <ActivityIndicator color={colors.text} /> : null}
@@ -119,8 +141,8 @@ export function CameraWorkspace({
               : processing ? "分析中" : triggerMode === "manual" ? "待分析" : "Ready"}
           </Text>
         </View>
-        <Pressable style={styles.topIcon} onPress={onToggleCamera}>
-          <SwitchCamera size={20} strokeWidth={2.2} color={colors.white} />
+        <Pressable style={styles.topIcon} onPress={fixtureEnabled ? onOpenFixtureControls : onToggleCamera}>
+          {fixtureEnabled ? <FlaskConical size={20} strokeWidth={2.2} color={colors.white} /> : <SwitchCamera size={20} strokeWidth={2.2} color={colors.white} />}
         </Pressable>
       </View>
 
@@ -166,6 +188,7 @@ export function CameraWorkspace({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    justifyContent: "center",
     overflow: "hidden",
     backgroundColor: colors.cameraInk
   },
@@ -294,5 +317,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white
   },
   shutterDisabled: { opacity: 0.5 },
-  controlDisabled: { opacity: 0.48 }
+  controlDisabled: { opacity: 0.48 },
+  fixtureViewport: {
+    width: "100%",
+    maxHeight: "100%",
+    alignSelf: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: "#08090a"
+  }
 });

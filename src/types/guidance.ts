@@ -149,6 +149,16 @@ export interface GuidanceOutput {
     clientNetworkOverheadMs: number;
     renderMs?: number;
     tapToOverlayMs?: number;
+    httpStatus: number;
+    uploadMode: "multipart" | "base64_json";
+    apiMode: "live" | "mock_success" | "mock_error" | "mock_timeout";
+    captureSource: "camera" | "fixture" | "gallery";
+    sourceWidth: number;
+    sourceHeight: number;
+    processedWidth: number;
+    processedHeight: number;
+    sourceBytes: number;
+    processedBytes: number;
   };
 }
 

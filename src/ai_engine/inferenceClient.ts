@@ -1,7 +1,7 @@
-import { CapturedFrame } from "@/types/frame";
+import { AnalysisFailureScenario, CapturedFrame } from "@/types/frame";
 import { CompositionMode, GuidanceOutput, ModelStatus } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
-import { parseGuidanceJson } from "./jsonParser";
+import { GuidanceParseError, parseGuidanceJson } from "./jsonParser";
 import { createMockGuidance } from "./mockGuidance";
 import { appConfig } from "@/config";
 
@@ -30,10 +30,34 @@ export class GuidanceApiError extends Error {
   }
 }
 
-interface ShutterMuseHttpClientOptions {
+export interface ShutterMuseHttpClientOptions {
   endpoint: string | undefined;
   timeoutMs: number;
   mockEnabled: boolean;
+  apiMode?: "live" | "mock_success" | "mock_error" | "mock_timeout";
+  uploadMode?: "multipart" | "base64_json";
+  networkProfile?: "normal" | "slow" | "offline";
+  failureScenario?: AnalysisFailureScenario;
+}
+
+function abortError(): Error {
+  const error = new Error("Aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+function wait(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(abortError());
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(abortError());
+    }, { once: true });
+  });
 }
 
 function endpointOrUndefined(value?: string): string | undefined {
@@ -43,7 +67,7 @@ function endpointOrUndefined(value?: string): string | undefined {
   return trimmed;
 }
 
-function captureFields(input: GuidanceEngineInput, streamId: string): Record<string, unknown> {
+export function captureFields(input: GuidanceEngineInput, streamId: string): Record<string, unknown> {
   const capture = input.frame.capture;
   return {
     frame_id: input.frame.frameId,
@@ -93,33 +117,155 @@ async function jsonRequestBody(
   });
 }
 
-function multipartRequestBody(
+export function multipartMetadata(
   input: GuidanceEngineInput,
   streamId: string,
   uploadStartedAt: number
-): FormData {
-  if (!input.frame.image.uri) throw new Error("Analysis image URI is missing");
-  const form = new FormData();
-  const fields = {
+): Record<string, unknown> {
+  return {
     ...captureFields(input, streamId),
+    upload_mode: "multipart",
     upload_started_at: uploadStartedAt,
     image_width: input.frame.image.width,
     image_height: input.frame.image.height,
     original_bytes: input.frame.image.originalBytes,
     processed_bytes: input.frame.image.processedBytes
   };
+}
+
+export function multipartImagePart(input: GuidanceEngineInput): {
+  uri: string;
+  name: string;
+  type: string;
+} {
+  if (!input.frame.image.uri) throw new Error("Analysis image URI is missing");
+  return {
+    uri: input.frame.image.uri,
+    name: `analysis-${input.frame.frameId}.jpg`,
+    type: input.frame.image.mimeType
+  };
+}
+
+export function multipartRequestBody(
+  input: GuidanceEngineInput,
+  streamId: string,
+  uploadStartedAt: number
+): FormData {
+  const form = new FormData();
+  const fields = multipartMetadata(input, streamId, uploadStartedAt);
   for (const [key, value] of Object.entries(fields)) {
     if (value !== undefined) form.append(key, String(value));
   }
   form.append(
     "image",
-    {
-      uri: input.frame.image.uri,
-      name: `analysis-${input.frame.frameId}.jpg`,
-      type: input.frame.image.mimeType
-    } as unknown as Blob
+    multipartImagePart(input) as unknown as Blob
   );
   return form;
+}
+
+function mockSuccess(
+  input: GuidanceEngineInput,
+  uploadMode: "multipart" | "base64_json"
+): AnalyzeResult {
+  const capture = input.frame.capture;
+  const now = Date.now();
+  return {
+    guidance: {
+      requestId: `mock_${input.frame.frameId}`,
+      frameId: input.frame.frameId,
+      status: "success",
+      guidanceEngine: "fixture_mock",
+      priority: "composition",
+      problem: { type: "subject_position", description: "主体稍微偏右" },
+      reason: "固定响应仅用于模拟器 UI 回归",
+      message: "镜头稍微往左移",
+      actions: [{ type: "move_camera", direction: "left", message: "镜头稍微往左移", confidence: 0.86 }],
+      summary: "模拟构图建议",
+      confidence: 0.86,
+      composition: { decision: "refine", bboxNorm: [0.15, 0.1, 0.8, 0.9] },
+      coordinateContext: {
+        imageWidth: input.frame.image.width,
+        imageHeight: input.frame.image.height,
+        previewWidth: capture?.previewWidth || input.frame.image.width,
+        previewHeight: capture?.previewHeight || input.frame.image.height,
+        cameraFacing: capture?.cameraFacing ?? "unknown",
+        imageMirrored: capture?.imageMirrored ?? false,
+        previewMirrored: capture?.previewMirrored ?? false,
+        resizeMode: "cover"
+      },
+      timing: { visionMs: 0, guidanceMs: 0, totalMs: 0 },
+      clientTiming: buildClientTiming(input, now, now, 200, uploadMode, "mock_success")
+    },
+    visionFeatures: null
+  };
+}
+
+function buildClientTiming(
+  input: GuidanceEngineInput,
+  uploadStartedAt: number,
+  responseReceivedAt: number,
+  httpStatus: number,
+  uploadMode: "multipart" | "base64_json",
+  apiMode: "live" | "mock_success" | "mock_error" | "mock_timeout",
+  serverTotalMs = 0,
+  requestBodyBytes?: number
+): NonNullable<GuidanceOutput["clientTiming"]> {
+  const capture = input.frame.capture;
+  const payloadBytes = input.frame.image.processedBytes
+    ?? Math.ceil((input.frame.image.base64?.length ?? 0) * 0.75);
+  const networkAndServerMs = responseReceivedAt - uploadStartedAt;
+  return {
+    ...(capture?.tapTimestamp !== undefined ? { tapTimestamp: capture.tapTimestamp } : {}),
+    captureMs: capture ? capture.captureCompletedAt - capture.captureStartedAt : 0,
+    preprocessMs: capture ? capture.preprocessCompletedAt - capture.captureCompletedAt : 0,
+    payloadBytes,
+    requestBodyBytes: requestBodyBytes ?? payloadBytes,
+    uploadStartedAt,
+    responseReceivedAt,
+    networkAndServerMs,
+    clientNetworkOverheadMs: Math.max(0, networkAndServerMs - serverTotalMs),
+    httpStatus,
+    uploadMode,
+    apiMode,
+    captureSource: capture?.source ?? "camera",
+    sourceWidth: input.frame.image.originalWidth ?? input.frame.image.width,
+    sourceHeight: input.frame.image.originalHeight ?? input.frame.image.height,
+    processedWidth: input.frame.image.width,
+    processedHeight: input.frame.image.height,
+    sourceBytes: input.frame.image.originalBytes ?? payloadBytes,
+    processedBytes: input.frame.image.processedBytes ?? payloadBytes
+  };
+}
+
+function mockFailureStatus(
+  scenario: AnalysisFailureScenario
+): ModelStatus {
+  const httpCode = scenario.startsWith("http_") ? scenario.slice(5) : null;
+  if (httpCode) {
+    return {
+      code: `HTTP_${httpCode}`,
+      message: "AI 暂时无法使用",
+      suggestion: "可以稍后再试",
+      retryable: true,
+      severity: "error"
+    };
+  }
+  if (scenario === "bbox_safety_rejected") {
+    return {
+      code: "BBOX_SAFETY_REJECTED",
+      message: "这次推荐框不够稳定",
+      suggestion: "稍微换个角度再分析",
+      retryable: true,
+      severity: "error"
+    };
+  }
+  return {
+    code: "INVALID_MODEL_OUTPUT",
+    message: "这次没看懂画面",
+    suggestion: scenario === "invalid_json" ? "稍微换个角度再试" : "稍微换个角度再试",
+    retryable: true,
+    severity: "error"
+  };
 }
 
 function estimateMultipartBodyBytes(
@@ -127,14 +273,7 @@ function estimateMultipartBodyBytes(
   streamId: string,
   uploadStartedAt: number
 ): number {
-  const fields = {
-    ...captureFields(input, streamId),
-    upload_started_at: uploadStartedAt,
-    image_width: input.frame.image.width,
-    image_height: input.frame.image.height,
-    original_bytes: input.frame.image.originalBytes,
-    processed_bytes: input.frame.image.processedBytes
-  };
+  const fields = multipartMetadata(input, streamId, uploadStartedAt);
   const encoder = new TextEncoder();
   const fieldBytes = Object.entries(fields).reduce((total, [key, value]) => {
     if (value === undefined) return total;
@@ -159,8 +298,21 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
   }
 
   async infer(input: GuidanceEngineInput): Promise<AnalyzeResult> {
-    if (!this.endpoint) {
-      if (this.options.mockEnabled) {
+    const capture = input.frame.capture;
+    const apiMode = this.options.apiMode ?? (appConfig.analysisFixtureEnabled
+      ? capture?.apiMode ?? appConfig.analysisApiMode
+      : appConfig.analysisApiMode);
+    const uploadMode = this.options.uploadMode ?? (appConfig.analysisFixtureEnabled
+      ? capture?.uploadMode ?? appConfig.analysisUploadMode
+      : appConfig.analysisUploadMode);
+    const networkProfile = this.options.networkProfile ?? (appConfig.analysisFixtureEnabled
+      ? capture?.networkProfile ?? "normal"
+      : "normal");
+    const failureScenario = this.options.failureScenario
+      ?? capture?.failureScenario
+      ?? "invalid_model_output";
+    if (!this.endpoint && apiMode === "live") {
+      if (this.options.mockEnabled && apiMode === "live") {
         const guidance = createMockGuidance(input.frame.frameId);
         return { guidance, visionFeatures: null };
       }
@@ -177,11 +329,26 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
     const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
     try {
       const uploadStartedAt = Date.now();
-      const useMultipart = appConfig.analysisUploadMode === "multipart" && Boolean(input.frame.image.uri);
+      if (networkProfile === "offline") {
+        throw new TypeError("Simulated offline network");
+      }
+      if (networkProfile === "slow") {
+        await wait(2500, controller.signal);
+      }
+      if (apiMode === "mock_timeout") {
+        await wait(this.options.timeoutMs + 50, controller.signal);
+      }
+      if (apiMode === "mock_error") {
+        throw new GuidanceApiError(mockFailureStatus(failureScenario));
+      }
+      if (apiMode === "mock_success") {
+        return mockSuccess(input, uploadMode);
+      }
+      const useMultipart = uploadMode === "multipart" && Boolean(input.frame.image.uri);
       const body = useMultipart
         ? multipartRequestBody(input, this.streamId, uploadStartedAt)
         : await jsonRequestBody(input, this.streamId, uploadStartedAt);
-      const response = await fetch(this.endpoint, {
+      const response = await fetch(this.endpoint!, {
         method: "POST",
         ...(useMultipart ? {} : { headers: { "Content-Type": "application/json" } }),
         body,
@@ -217,7 +384,6 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
       }
       const raw = JSON.parse(text) as unknown;
       const guidance = parseGuidanceJson(text);
-      const capture = input.frame.capture;
       const payloadBytes = input.frame.image.processedBytes ?? Math.ceil((input.frame.image.base64?.length ?? 0) * 0.75);
       const requestBodyBytes = useMultipart
         ? estimateMultipartBodyBytes(input, this.streamId, uploadStartedAt)
@@ -232,20 +398,16 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
         previewMirrored: capture?.previewMirrored ?? false,
         resizeMode: "cover"
       };
-      const networkAndServerMs = responseReceivedAt - uploadStartedAt;
-      guidance.clientTiming = {
-        ...(capture?.tapTimestamp !== undefined
-          ? { tapTimestamp: capture.tapTimestamp }
-          : {}),
-        captureMs: capture ? capture.captureCompletedAt - capture.captureStartedAt : 0,
-        preprocessMs: capture ? capture.preprocessCompletedAt - capture.captureCompletedAt : 0,
-        payloadBytes,
-        requestBodyBytes,
+      guidance.clientTiming = buildClientTiming(
+        input,
         uploadStartedAt,
         responseReceivedAt,
-        networkAndServerMs,
-        clientNetworkOverheadMs: Math.max(0, networkAndServerMs - guidance.timing.totalMs)
-      };
+        response.status,
+        useMultipart ? "multipart" : "base64_json",
+        apiMode,
+        guidance.timing.totalMs,
+        requestBodyBytes
+      );
       return {
         guidance,
         visionFeatures: parseVisionFeatures(raw)
@@ -257,6 +419,15 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
           code: "MODEL_TIMEOUT",
           message: "这次分析花得有点久",
           suggestion: "保持画面稳定，再试一次",
+          retryable: true,
+          severity: "error"
+        });
+      }
+      if (error instanceof GuidanceParseError || error instanceof SyntaxError) {
+        throw new GuidanceApiError({
+          code: "INVALID_MODEL_OUTPUT",
+          message: "这次没看懂画面",
+          suggestion: "稍微换个角度再试",
           retryable: true,
           severity: "error"
         });

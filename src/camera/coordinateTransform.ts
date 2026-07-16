@@ -18,6 +18,19 @@ export interface PreviewTransformContext {
 export type NormalizedBBox = [number, number, number, number];
 export type PreviewBBox = [number, number, number, number];
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function clampPreviewBBox(bbox: PreviewBBox, preview: Size): PreviewBBox {
+  return [
+    clamp(bbox[0], 0, preview.width),
+    clamp(bbox[1], 0, preview.height),
+    clamp(bbox[2], 0, preview.width),
+    clamp(bbox[3], 0, preview.height)
+  ];
+}
+
 export function applyMirrorTransform(point: Point, width: number): Point {
   return { x: width - point.x, y: point.y };
 }
@@ -75,5 +88,8 @@ export function modelBBoxToPreviewBBox(
     context.image,
     context.preview
   );
-  return [topLeft.x, topLeft.y, bottomRight.x, bottomRight.y];
+  return clampPreviewBBox(
+    [topLeft.x, topLeft.y, bottomRight.x, bottomRight.y],
+    context.preview
+  );
 }

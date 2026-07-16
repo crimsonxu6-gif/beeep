@@ -1,5 +1,8 @@
 import { expect, it } from "vitest";
 import {
+  analysisApiModeFromEnv,
+  analysisFixtureEnabled,
+  analysisFixtureSourceFromEnv,
   analysisUploadModeFromEnv,
   guidanceTriggerModeFromEnv,
   isMockEnabled
@@ -14,6 +17,16 @@ it("defaults analysis uploads to multipart", () => {
   expect(analysisUploadModeFromEnv(undefined)).toBe("multipart");
   expect(analysisUploadModeFromEnv("multipart")).toBe("multipart");
   expect(analysisUploadModeFromEnv("base64_json")).toBe("base64_json");
+});
+
+it("keeps fixture and mock API modes disabled in production", () => {
+  expect(analysisFixtureEnabled(false, "1")).toBe(false);
+  expect(analysisFixtureEnabled(true, "1")).toBe(true);
+  expect(analysisApiModeFromEnv(false, "mock_success")).toBe("live");
+  expect(analysisApiModeFromEnv(true, "mock_success")).toBe("mock_success");
+  expect(analysisApiModeFromEnv(true, "invalid")).toBe("live");
+  expect(analysisFixtureSourceFromEnv("gallery")).toBe("gallery");
+  expect(analysisFixtureSourceFromEnv(undefined)).toBe("bundled");
 });
 
 it("defaults guidance triggering to manual mode", () => {

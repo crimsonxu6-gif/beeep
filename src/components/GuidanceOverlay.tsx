@@ -1,5 +1,5 @@
 import { StyleSheet, View } from "react-native";
-import Svg, { Line } from "react-native-svg";
+import Svg, { Line, Rect } from "react-native-svg";
 
 import { ModelStatus, StableGuidance } from "@/types/guidance";
 import { VisionFeatures } from "@/types/vision";
@@ -29,6 +29,7 @@ interface GuidanceOverlayProps {
   modelStatus: ModelStatus | null;
   debugState: GuidanceDebugState;
   compositionMode: CompositionMode;
+  coordinateDebug?: boolean;
 }
 
 function RuleOfThirdsGrid({ width, height }: OverlaySize) {
@@ -77,7 +78,8 @@ export function GuidanceOverlay({
   latencyMs,
   modelStatus,
   debugState,
-  compositionMode
+  compositionMode,
+  coordinateDebug = false
 }: GuidanceOverlayProps) {
   const guidance = stableGuidance?.guidance;
   const instructions = guidanceToInstructions(guidance);
@@ -86,6 +88,23 @@ export function GuidanceOverlay({
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <RuleOfThirdsGrid width={overlaySize.width} height={overlaySize.height} />
+      {coordinateDebug && guidance?.composition?.bboxNorm ? (
+        <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width={overlaySize.width} height={overlaySize.height}>
+          <Rect x={0.5} y={0.5} width={Math.max(0, overlaySize.width - 1)} height={Math.max(0, overlaySize.height - 1)} stroke="rgba(255,214,64,0.8)" strokeWidth={1} fill="transparent" />
+          <Line x1={overlaySize.width / 2} y1={0} x2={overlaySize.width / 2} y2={overlaySize.height} stroke="rgba(255,214,64,0.45)" strokeWidth={0.8} />
+          <Line x1={0} y1={overlaySize.height / 2} x2={overlaySize.width} y2={overlaySize.height / 2} stroke="rgba(255,214,64,0.45)" strokeWidth={0.8} />
+          <Rect
+            x={guidance.composition.bboxNorm[0] * overlaySize.width}
+            y={guidance.composition.bboxNorm[1] * overlaySize.height}
+            width={(guidance.composition.bboxNorm[2] - guidance.composition.bboxNorm[0]) * overlaySize.width}
+            height={(guidance.composition.bboxNorm[3] - guidance.composition.bboxNorm[1]) * overlaySize.height}
+            stroke="rgba(255,214,64,0.85)"
+            strokeDasharray="4 4"
+            strokeWidth={1}
+            fill="transparent"
+          />
+        </Svg>
+      ) : null}
       <View style={[styles.guidanceLayer, processing && guidance ? styles.updating : null]}>
         <CompositionBoxOverlay guidance={guidance} size={overlaySize} />
         <PoseSkeletonOverlay guidance={guidance} size={overlaySize} />
