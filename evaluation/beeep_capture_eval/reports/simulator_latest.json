@@ -1,31 +1,34 @@
 {
   "report_label": "Simulator validation only",
   "real_device_camera_validation": false,
-  "test_date": "2026-07-16",
+  "test_date": "2026-07-17",
   "base_commit": "4600849d3f69c8ed370092ebad957ffb4b83ec9e",
   "implementation_commit_sha": "c9735553580c933a72a755a70e50a31faf26e5ac",
-  "tested_commit_sha": null,
-  "report_generated_from_sha": "a8ba086dd06aef42623450bdf993068b43943fc3",
+  "tested_commit_sha": "1db65f1df6ea9f218b2c1a0f647697b7a57e0d70",
+  "report_generated_from_sha": "1db65f1df6ea9f218b2c1a0f647697b7a57e0d70",
   "environment": "android_emulator",
   "camera_input": "fixture",
   "performance_validity": "logic_only",
   "android_studio": {
     "version": "2026.1.2",
+    "build": "AI-261.25134.95.2612.15822958",
     "install_path": "C:/Program Files/Android/Android Studio"
   },
   "android_sdk": {
     "path": "D:/Android/Sdk",
     "adb_version": "37.0.0-14910828",
-    "emulator_version": "36.6.11.0"
+    "emulator_version": "36.6.11.0",
+    "hypervisor_driver": "AEHD 2.2",
+    "hypervisor_status": "RUNNING"
   },
   "android_emulator": {
     "model": "Pixel 7",
     "avd_name": "Beeep_Pixel_7_API_34",
+    "device_id": "emulator-5554",
     "api_level": 34,
     "abi": "x86_64",
     "resolution": "1080x2400",
-    "status": "NOT_RUN",
-    "reason": "HYPERVISOR_DRIVER_REQUIRES_ADMIN_APPROVAL"
+    "status": "PASS"
   },
   "app_build": {
     "type": "development",
@@ -36,52 +39,118 @@
     "bundle_modules": 2538,
     "bundle_hbc_bytes_approx": 3600000,
     "apk_path": "android/app/build/outputs/apk/debug/app-debug.apk",
-    "apk_bytes": 188374933,
-    "install": "NOT_RUN",
-    "launch": "NOT_RUN",
-    "run_error": "HYPERVISOR_DRIVER_REQUIRES_ADMIN_APPROVAL"
+    "apk_bytes": 188375105,
+    "install": "PASS",
+    "launch": "PASS"
   },
-  "fixtures": { "count": 8, "source_kind": "ai_generated", "bundled_manifest": "assets/analysis-fixtures/manifest.json" },
-  "fixture_preprocess_expectation": { "source_dimensions": "mixed", "processed_dimensions": "short edge 768", "short_edge": 768, "jpeg_quality": 0.7, "native_processed_bytes": null, "status": "NOT_RUN" },
-  "host_http_debug_validation": {
+  "fixtures": {
+    "count": 8,
+    "source_kind": "ai_generated",
+    "bundled_manifest": "assets/analysis-fixtures/manifest.json",
+    "preprocess_configuration": {
+      "short_edge": 768,
+      "jpeg_quality": 0.7,
+      "output_mime": "image/jpeg"
+    },
+    "native_preprocess_results": [
+      { "id": "front_portrait", "source": [960, 1280], "source_bytes": 156696, "processed": [768, 1024], "processed_image_bytes": 82017, "preprocess_ms": 214, "status": "PASS" },
+      { "id": "full_body", "source": [960, 1280], "source_bytes": 190234, "processed": [768, 1024], "processed_image_bytes": 96129, "preprocess_ms": 45, "status": "PASS" },
+      { "id": "side_profile", "source": [960, 1280], "source_bytes": 167607, "processed": [768, 1024], "processed_image_bytes": 92520, "preprocess_ms": 43, "status": "PASS" },
+      { "id": "back_view", "source": [960, 1280], "source_bytes": 364802, "processed": [768, 1024], "processed_image_bytes": 196241, "preprocess_ms": 54, "status": "PASS" },
+      { "id": "group_edge", "source": [960, 1280], "source_bytes": 196838, "processed": [768, 1024], "processed_image_bytes": 114733, "preprocess_ms": 52, "status": "PASS" },
+      { "id": "looking_down", "source": [960, 1280], "source_bytes": 124606, "processed": [768, 1024], "processed_image_bytes": 65706, "preprocess_ms": 45, "status": "PASS" },
+      { "id": "landscape_group", "source": [1280, 960], "source_bytes": 284595, "processed": [1024, 768], "processed_image_bytes": 106462, "preprocess_ms": 31, "status": "PASS" },
+      { "id": "large_portrait", "source": [3024, 4032], "source_bytes": 1174344, "processed": [768, 1024], "processed_image_bytes": 78823, "preprocess_ms": 123, "status": "PASS" }
+    ]
+  },
+  "network_simulation_notes": {
+    "simulated_pre_request_delay": "A 2.5 second client delay before fetch; not a low-bandwidth test.",
+    "simulated_offline_before_fetch": "A client error before fetch; not an Android network-stack test.",
+    "estimated_request_body_bytes": "An estimate based on image and FormData field sizes, not measured wire bytes."
+  },
+  "real_http_debug_validation": {
     "status": "PASS",
-    "android_fetch_validation": false,
-    "statuses": [200, 422, 500, 502, 503, 504],
-    "scenarios": ["success", "delayed_success", "invalid_json", "missing_bbox", "bbox_safety_rejected", "http_500", "http_502", "http_503", "http_504"]
+    "android_fetch_validation": true,
+    "endpoint": "/v1/debug/analyze-response",
+    "results": [
+      { "scenario": "http_500", "http_status": 500, "client_code": "HTTP_500", "button_recovered": true, "invalid_overlay": false, "status": "PASS" },
+      { "scenario": "http_502", "http_status": 502, "client_code": "HTTP_502", "button_recovered": true, "invalid_overlay": false, "status": "PASS" },
+      { "scenario": "http_503", "http_status": 503, "client_code": "HTTP_503", "button_recovered": true, "invalid_overlay": false, "status": "PASS" },
+      { "scenario": "http_504", "http_status": 504, "client_code": "HTTP_504", "button_recovered": true, "invalid_overlay": false, "status": "PASS" },
+      { "scenario": "invalid_json", "http_status": 200, "client_code": "INVALID_MODEL_OUTPUT", "button_recovered": true, "invalid_overlay": false, "status": "PASS" },
+      { "scenario": "missing_bbox", "http_status": 200, "client_code": null, "button_recovered": true, "invalid_overlay": false, "status": "PASS" },
+      { "scenario": "bbox_safety_rejected", "http_status": 422, "client_code": "BBOX_SAFETY_REJECTED", "button_recovered": true, "invalid_overlay": false, "status": "PASS" },
+      { "scenario": "delayed_success", "http_status": 200, "delay_ms": 2568, "button_recovered": true, "invalid_overlay": false, "status": "PASS" }
+    ]
   },
-  "automated_validation": {
-    "fixture_registry": "PASS",
-    "unified_source_processing": "PASS",
-    "resize_plan": "PASS",
-    "jpeg_configuration": "PASS",
-    "multipart_metadata": "PASS",
-    "base64_regression": "PASS",
-    "mock_success": "PASS",
-    "mock_error": "PASS",
-    "mock_timeout": "PASS",
-    "aspect_fill_horizontal": "PASS",
-    "aspect_fill_vertical": "PASS",
-    "mirror_symmetry": "PASS",
-    "duplicate_click_guard": "PASS",
-    "tap_to_overlay_instrumentation": "PASS"
+  "live_backend_validation": {
+    "guidance_engine": "rules",
+    "transport": "multipart",
+    "http_status": 200,
+    "source_dimensions": [960, 1280],
+    "processed_dimensions": [768, 1024],
+    "source_bytes": 156696,
+    "processed_image_bytes": 82017,
+    "estimated_request_body_bytes": 84975,
+    "server_total_ms": 42,
+    "network_and_server_ms": 178,
+    "client_network_overhead_ms": 136,
+    "tap_to_overlay_ms": 282,
+    "performance_validity": "logic_only",
+    "status": "PASS"
+  },
+  "live_shuttermuse_validation": {
+    "status": "NOT_RUN",
+    "reason": "SHUTTERMUSE_RESOURCE_UNAVAILABLE",
+    "required_environment": "24GB GPU benchmark remains pending"
   },
   "native_results": {
-    "image_preprocess_success": { "passed": 0, "total": 8, "status": "NOT_RUN" },
-    "multipart_upload_success": { "passed": 0, "total": 1, "status": "NOT_RUN" },
-    "api_success": 0,
-    "api_failure": 0,
-    "overlay_render_success": { "passed": 0, "total": 12, "status": "NOT_RUN" },
-    "mirror": "NOT_RUN",
-    "orientation": "NOT_RUN",
-    "aspect_fill_visual": "NOT_RUN",
-    "timeout_recovery_visual": "NOT_RUN",
-    "offline_recovery_visual": "NOT_RUN",
-    "duplicate_click_visual": "NOT_RUN",
-    "crash_or_memory": "NOT_RUN",
-    "tap_to_overlay": { "status": "NOT_RUN", "validity": "logic_only", "samples": [] }
+    "image_preprocess_success": { "passed": 8, "total": 8, "status": "PASS" },
+    "multipart_upload_success": { "passed": 1, "total": 1, "status": "PASS" },
+    "live_backend_api_success": { "passed": 1, "total": 1, "status": "PASS" },
+    "overlay_render_success": { "passed": 12, "total": 12, "status": "PASS" },
+    "mirror": "PASS",
+    "orientation": "PASS",
+    "aspect_fill_visual": "PASS",
+    "timeout_recovery_visual": "PASS",
+    "offline_recovery_visual": "PASS",
+    "duplicate_click_visual": "PASS",
+    "crash_observed": false,
+    "memory_measurement": "NOT_RUN",
+    "tap_to_overlay": {
+      "status": "PASS",
+      "validity": "logic_only",
+      "samples_ms": [95, 111, 282, 2678],
+      "note": "The 2678ms sample is the intentional delayed-success scenario. These samples are not phone performance data."
+    }
   },
-  "scenario_summary": { "total": 12, "pass": 0, "fail": 0, "not_run": 12 },
-  "automated_test_summary": { "frontend": 60, "backend_and_evaluation": 82, "model_service": 51, "total": 193, "status": "PASS" },
+  "scenarios": [
+    { "id": 1, "name": "front portrait, rear semantics, portrait", "status": "PASS" },
+    { "id": 2, "name": "front portrait, front mirrored, portrait", "status": "PASS" },
+    { "id": 3, "name": "side profile, rear semantics, portrait", "status": "PASS" },
+    { "id": 4, "name": "back view, rear semantics, portrait", "status": "PASS" },
+    { "id": 5, "name": "full body, rear semantics, 9:16", "status": "PASS" },
+    { "id": 6, "name": "group, rear semantics, 3:4", "status": "PASS" },
+    { "id": 7, "name": "real landscape input in portrait preview", "status": "PASS" },
+    { "id": 8, "name": "portrait input in landscape preview", "status": "PASS", "note": "Core overlay remained bounded; debug-only text was constrained in the narrow preview." },
+    { "id": 9, "name": "mock success", "status": "PASS" },
+    { "id": 10, "name": "mock error", "status": "PASS" },
+    { "id": 11, "name": "mock timeout", "status": "PASS" },
+    { "id": 12, "name": "live backend multipart success", "status": "PASS", "note": "Rules backend; not a ShutterMuse quality result." }
+  ],
+  "scenario_summary": { "total": 12, "pass": 12, "fail": 0, "not_run": 0 },
+  "automated_test_summary": {
+    "frontend": 61,
+    "backend": 65,
+    "evaluation": 17,
+    "model_service": 51,
+    "total": 194,
+    "frontend_check": "PASS",
+    "backend_ruff": "PASS",
+    "model_service_ruff": "PASS",
+    "android_js_bundle": "PASS",
+    "status": "PASS"
+  },
   "device_required": [
     "real expo-camera capture",
     "real EXIF and sensor orientation",
