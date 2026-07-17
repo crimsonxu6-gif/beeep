@@ -5,8 +5,20 @@ import {
   estimatedMultipartRequestBodyBytes,
   multipartImagePart,
   multipartMetadata,
+  multipartRequestBody,
   ShutterMuseHttpClient
 } from "./inferenceClient";
+
+vi.mock("expo-file-system", () => ({
+  File: class TestFile extends Blob {
+    readonly uri: string;
+
+    constructor(uri: string) {
+      super(["fixture-image"], { type: "image/jpeg" });
+      this.uri = uri;
+    }
+  }
+}));
 
 const input: GuidanceEngineInput = {
   compositionMode: "auto",
@@ -221,5 +233,14 @@ describe("analysis multipart request", () => {
     });
     expect(multipartInput.frame.image.processedImageBytes).toBe(88000);
     expect(estimatedMultipartRequestBodyBytes(multipartInput, "fixture_stream", 125)).toBeGreaterThan(88000);
+  });
+
+  it("uses an Expo File instead of a legacy React Native URI object", async () => {
+    const body = await multipartRequestBody(multipartInput, "fixture_stream", 125);
+    const image = body.get("image");
+
+    expect(image).toBeInstanceOf(Blob);
+    expect(image).not.toMatchObject({ uri: "file:///analysis.jpg" });
+    expect(body.get("frame_id")).toBe("7");
   });
 });

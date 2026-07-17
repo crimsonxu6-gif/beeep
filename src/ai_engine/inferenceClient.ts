@@ -158,20 +158,19 @@ export function multipartImagePart(input: GuidanceEngineInput): {
   };
 }
 
-export function multipartRequestBody(
+export async function multipartRequestBody(
   input: GuidanceEngineInput,
   streamId: string,
   uploadStartedAt: number
-): FormData {
+): Promise<FormData> {
   const form = new FormData();
   const fields = multipartMetadata(input, streamId, uploadStartedAt);
   for (const [key, value] of Object.entries(fields)) {
     if (value !== undefined) form.append(key, String(value));
   }
-  form.append(
-    "image",
-    multipartImagePart(input) as unknown as Blob
-  );
+  const part = multipartImagePart(input);
+  const { File } = await import("expo-file-system");
+  form.append("image", new File(part.uri), part.name);
   return form;
 }
 
@@ -363,7 +362,7 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
       }
       const useMultipart = uploadMode === "multipart" && Boolean(input.frame.image.uri);
       const body = useMultipart
-        ? multipartRequestBody(input, this.streamId, uploadStartedAt)
+        ? await multipartRequestBody(input, this.streamId, uploadStartedAt)
         : await jsonRequestBody(input, this.streamId, uploadStartedAt);
       const response = await fetch(requestEndpoint!, {
         method: "POST",

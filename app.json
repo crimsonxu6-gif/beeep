@@ -37,7 +37,15 @@
     },
     "owner": "crimson054",
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-dev-client",
+        {
+          "toolsButton": false,
+          "skipOnboarding": true,
+          "showMenuAtLaunch": false
+        }
+      ]
     ]
   }
 }
