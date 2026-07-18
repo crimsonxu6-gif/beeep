@@ -60,6 +60,15 @@ def test_debug_endpoint_returns_real_success_and_delayed_success(monkeypatch) ->
         assert response.json()["composition"]["bbox_norm"] == [0.15, 0.1, 0.8, 0.9]
 
 
+def test_debug_endpoint_returns_each_fixed_corner_bbox(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    for scenario, bbox in debug_analyze.DEBUG_BBOXES.items():
+        response = _post(client, scenario)
+        assert response.status_code == 200
+        assert response.json()["frame_id"] == 91
+        assert response.json()["composition"]["bbox_norm"] == bbox
+
+
 def test_debug_endpoint_returns_requested_http_statuses(monkeypatch) -> None:
     client = _client(monkeypatch)
     for status_code in (500, 502, 503, 504):

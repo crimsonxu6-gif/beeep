@@ -1,7 +1,9 @@
 {
   "report_type": "physical Android partial validation",
   "date": "2026-07-18",
-  "commit": "b26c0df5cb6e3250e16ec0e02cf2153bd39a3870",
+  "tested_commit_sha": "b26c0df5cb6e3250e16ec0e02cf2153bd39a3870",
+  "report_commit_sha": "788e0dc1df691b101741d9b383a4a120e7401677",
+  "report_generated_from_sha": "b26c0df5cb6e3250e16ec0e02cf2153bd39a3870",
   "device": {
     "manufacturer": "Xiaomi",
     "model": "Redmi 9A (M2006C3LC)",
@@ -114,13 +116,13 @@
     "temporary_768_jpeg_0_7_equivalent_upload": {
       "success": 10,
       "failed": 0,
-      "client_p50_ms": 86,
-      "client_p95_ms": 101,
+      "host_roundtrip_p50_ms": 86,
+      "host_roundtrip_p95_ms": 101,
       "server_total_p50_ms": 55,
       "server_total_p95_ms": 66,
       "person_detected": 8,
       "no_person_detected": 2,
-      "notes": "Local temporary preprocessing was equivalent in size/quality targets but was not executed by the phone. This validates the backend rules path, not ShutterMuse quality."
+      "notes": "Local temporary preprocessing was equivalent in size/quality targets but was not executed by the Redmi 9A. These measurements are host round-trip data and validate the backend rules path, not phone client performance or ShutterMuse quality."
     }
   },
   "cleanup": {

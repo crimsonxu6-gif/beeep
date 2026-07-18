@@ -4,6 +4,8 @@ import { GuidanceOutput } from "@/types/guidance";
 import { OverlaySize } from "./GuidanceOverlay";
 import { modelBBoxToPreviewBBox } from "@/camera/coordinateTransform";
 
+const loggedBBoxEvidence = new Set<string>();
+
 export function CompositionBoxOverlay({ guidance, size }: { guidance: GuidanceOutput | undefined; size: OverlaySize }) {
   const bbox = guidance?.composition?.bboxNorm;
   if (!bbox || size.width <= 0 || size.height <= 0 || guidance?.composition?.decision === "keep") return null;
@@ -16,6 +18,25 @@ export function CompositionBoxOverlay({ guidance, size }: { guidance: GuidanceOu
         previewMirrored: coordinateContext.previewMirrored
       })
     : [bbox[0] * size.width, bbox[1] * size.height, bbox[2] * size.width, bbox[3] * size.height];
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    const evidenceKey = `${guidance.requestId}:${size.width}x${size.height}`;
+    if (!loggedBBoxEvidence.has(evidenceKey)) {
+      loggedBBoxEvidence.add(evidenceKey);
+      console.info("BEEEP_BBOX_OVERLAY", JSON.stringify({
+        requestId: guidance.requestId,
+        frameId: guidance.frameId,
+        previewWidth: size.width,
+        previewHeight: size.height,
+        cameraFacing: coordinateContext?.cameraFacing ?? "unknown",
+        imageMirrored: coordinateContext?.imageMirrored ?? false,
+        previewMirrored: coordinateContext?.previewMirrored ?? false,
+        deviceOrientation: coordinateContext?.deviceOrientation ?? "unknown",
+        bboxNorm: bbox,
+        transformedBboxPx: [x1, y1, x2, y2],
+        inBounds: x1 >= 0 && y1 >= 0 && x2 <= size.width && y2 <= size.height
+      }));
+    }
+  }
   return (
     <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width={size.width} height={size.height}>
       <Rect

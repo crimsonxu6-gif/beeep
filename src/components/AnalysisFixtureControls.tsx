@@ -100,7 +100,7 @@ export function AnalysisFixtureControls({
             </View>
             <Text style={styles.label}>错误子场景</Text>
             <View style={styles.wrap}>
-              {(["success", "delayed_success", "invalid_model_output", "http_500", "http_502", "http_503", "http_504", "invalid_json", "missing_bbox", "bbox_safety_rejected"] as const).map((failureScenario) => (
+              {(["success", "delayed_success", "bbox_top_left", "bbox_top_right", "bbox_bottom_left", "bbox_bottom_right", "invalid_model_output", "http_500", "http_502", "http_503", "http_504", "invalid_json", "missing_bbox", "bbox_safety_rejected"] as const).map((failureScenario) => (
                 <Choice key={failureScenario} value={failureScenario} current={settings.failureScenario} label={failureScenario} onSelect={(value) => onChange({ failureScenario: value })} />
               ))}
             </View>

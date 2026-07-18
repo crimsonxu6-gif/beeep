@@ -80,6 +80,12 @@ const EMPTY_DEBUG: GuidanceDebugState = {
   processedImageBytes: null
 };
 
+function logDeviceEvidence(event: string, payload: Record<string, unknown>): void {
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    console.info(event, JSON.stringify(payload));
+  }
+}
+
 export class GuidancePipeline {
   private latestPending: GuidanceEngineInput | null = null;
   private processing = false;
@@ -161,6 +167,27 @@ export class GuidancePipeline {
         processedImageBytes: guidance.clientTiming?.processedImageBytes ?? null
       };
       this.syncGuardDebug();
+      logDeviceEvidence("BEEEP_ANALYSIS_RESULT", {
+        result: "success",
+        requestId: guidance.requestId,
+        frameId: guidance.frameId,
+        guidanceEngine: guidance.guidanceEngine ?? null,
+        timing: guidance.timing,
+        clientTiming: guidance.clientTiming ?? null,
+        subjectPreflight: guidance.subjectPreflight ?? null,
+        personDetected: (visionFeatures?.people.length ?? 0) > 0,
+        personCount: visionFeatures?.people.length ?? 0,
+        visionFeatures,
+        bboxNorm: guidance.composition?.bboxNorm ?? null,
+        bboxDecision: guidance.composition?.decision ?? null,
+        coordinateContext: guidance.coordinateContext ?? null,
+        frameState: {
+          accepted: this.debugState.latestAcceptedFrameId,
+          processed: this.debugState.latestProcessedFrameId,
+          rendered: this.debugState.latestRenderedFrameId,
+          staleDropped: this.debugState.droppedStaleResultCount
+        }
+      });
       if (!reliable) return;
       this.callbacks.onSuccess?.();
       this.callbacks.onVisionFeatures?.(visionFeatures);
@@ -185,6 +212,21 @@ export class GuidancePipeline {
             tapToOverlayMs: stable.guidance.clientTiming.tapToOverlayMs ?? null
           };
           this.syncGuardDebug();
+          logDeviceEvidence("BEEEP_OVERLAY_RENDER", {
+            requestId: stable.guidance.requestId,
+            frameId: stable.guidance.frameId,
+            bboxNorm: stable.guidance.composition?.bboxNorm ?? null,
+            bboxDecision: stable.guidance.composition?.decision ?? null,
+            overlayRenderedAt: stable.guidance.clientTiming.overlayRenderedAt,
+            renderMs: stable.guidance.clientTiming.renderMs,
+            tapToOverlayMs: stable.guidance.clientTiming.tapToOverlayMs ?? null,
+            frameState: {
+              accepted: this.debugState.latestAcceptedFrameId,
+              processed: this.debugState.latestProcessedFrameId,
+              rendered: this.debugState.latestRenderedFrameId,
+              staleDropped: this.debugState.droppedStaleResultCount
+            }
+          });
         }
         this.callbacks.onStableGuidance?.(stable);
         this.scheduleExpiry();
@@ -197,6 +239,27 @@ export class GuidancePipeline {
           errorCode: normalized instanceof GuidanceApiError ? normalized.code : "UNKNOWN_ERROR"
         };
         this.syncGuardDebug();
+        logDeviceEvidence("BEEEP_ANALYSIS_ERROR", {
+          result: "error",
+          frameId: input.frame.frameId,
+          errorCode: this.debugState.errorCode,
+          capture: input.frame.capture ?? null,
+          image: {
+            width: input.frame.image.width,
+            height: input.frame.image.height,
+            mimeType: input.frame.image.mimeType,
+            originalBytes: input.frame.image.originalBytes ?? null,
+            processedImageBytes: input.frame.image.processedImageBytes ?? null,
+            originalWidth: input.frame.image.originalWidth ?? null,
+            originalHeight: input.frame.image.originalHeight ?? null
+          },
+          frameState: {
+            accepted: this.debugState.latestAcceptedFrameId,
+            processed: this.debugState.latestProcessedFrameId,
+            rendered: this.debugState.latestRenderedFrameId,
+            staleDropped: this.debugState.droppedStaleResultCount
+          }
+        });
         this.callbacks.onError?.(normalized);
       }
     } finally {

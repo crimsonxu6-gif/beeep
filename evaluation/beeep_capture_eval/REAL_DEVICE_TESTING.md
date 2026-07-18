@@ -18,7 +18,7 @@ Each analysis record should capture:
   "capture_ms": null,
   "preprocess_ms": null,
   "payload_bytes": null,
-  "request_body_bytes": null,
+  "estimated_request_body_bytes": null,
   "network_and_server_ms": null,
   "server_total_ms": null,
   "client_network_overhead_ms": null,

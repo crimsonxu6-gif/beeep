@@ -26,6 +26,10 @@ export type SimulatedNetworkProfile =
 export type AnalysisFailureScenario =
   | "success"
   | "delayed_success"
+  | "bbox_top_left"
+  | "bbox_top_right"
+  | "bbox_bottom_left"
+  | "bbox_bottom_right"
   | "invalid_model_output"
   | "http_500"
   | "http_502"

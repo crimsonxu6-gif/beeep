@@ -202,6 +202,7 @@ function mockSuccess(
         cameraFacing: capture?.cameraFacing ?? "unknown",
         imageMirrored: capture?.imageMirrored ?? false,
         previewMirrored: capture?.previewMirrored ?? false,
+        deviceOrientation: capture?.deviceOrientation ?? "unknown",
         resizeMode: "cover"
       },
       timing: { visionMs: 0, guidanceMs: 0, totalMs: 0 },
@@ -412,6 +413,7 @@ export class ShutterMuseHttpClient implements GuidanceInferenceClient {
         cameraFacing: capture?.cameraFacing ?? "unknown",
         imageMirrored: capture?.imageMirrored ?? false,
         previewMirrored: capture?.previewMirrored ?? false,
+        deviceOrientation: capture?.deviceOrientation ?? "unknown",
         resizeMode: "cover"
       };
       guidance.clientTiming = buildClientTiming(

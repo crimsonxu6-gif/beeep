@@ -98,6 +98,7 @@ export interface GuidanceOutput {
     cameraFacing: "front" | "back" | "unknown";
     imageMirrored: boolean;
     previewMirrored: boolean;
+    deviceOrientation?: "portrait" | "portrait_upside_down" | "landscape_left" | "landscape_right" | "unknown";
     resizeMode: "cover";
   };
   pose?: {

@@ -13,6 +13,10 @@ from core.request_context import get_request_id
 DebugScenario = Literal[
     "success",
     "delayed_success",
+    "bbox_top_left",
+    "bbox_top_right",
+    "bbox_bottom_left",
+    "bbox_bottom_right",
     "http_500",
     "http_502",
     "http_503",
@@ -54,7 +58,19 @@ async def _request_metadata(request: Request) -> tuple[int, int]:
     return frame_id, len(base64_value)
 
 
-def _success(frame_id: int, include_bbox: bool = True) -> dict[str, object]:
+DEBUG_BBOXES: dict[str, list[float]] = {
+    "bbox_top_left": [0.02, 0.02, 0.27, 0.27],
+    "bbox_top_right": [0.73, 0.02, 0.98, 0.27],
+    "bbox_bottom_left": [0.02, 0.73, 0.27, 0.98],
+    "bbox_bottom_right": [0.73, 0.73, 0.98, 0.98],
+}
+
+
+def _success(
+    frame_id: int,
+    include_bbox: bool = True,
+    bbox_norm: list[float] | None = None,
+) -> dict[str, object]:
     result: dict[str, object] = {
         "request_id": get_request_id(),
         "frame_id": frame_id,
@@ -79,7 +95,7 @@ def _success(frame_id: int, include_bbox: bool = True) -> dict[str, object]:
     if include_bbox:
         result["composition"] = {
             "decision": "refine",
-            "bbox_norm": [0.15, 0.1, 0.8, 0.9],
+            "bbox_norm": bbox_norm or [0.15, 0.1, 0.8, 0.9],
         }
     return result
 
@@ -95,6 +111,8 @@ async def analyze_response(
     if scenario == "delayed_success":
         await asyncio.sleep(max(0, settings.debug_analyze_delay_ms) / 1000)
         return _success(frame_id)
+    if scenario in DEBUG_BBOXES:
+        return _success(frame_id, bbox_norm=DEBUG_BBOXES[scenario])
     if scenario == "invalid_json":
         return Response(content="{invalid-json", status_code=200, media_type="application/json")
     if scenario == "missing_bbox":
