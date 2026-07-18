@@ -196,6 +196,26 @@ HTTP 500/502/503/504、非法 JSON、缺 bbox、延迟响应：PASS
 
 详细报告：`evaluation/beeep_capture_eval/reports/simulator_latest.json`。
 
+### Redmi 9A 物理 Android 部分验收
+
+2026-07-18 在 Redmi 9A（Android 10 / API 29、2 GB、720x1600）完成首轮物理设备验证：
+
+```text
+Development APK 安装、启动：PASS
+后置/前置相机打开：PASS
+后置真实 multipart 请求：PASS，capture 1255 ms / preprocess 572 ms / HTTP 200
+前置真实 multipart 请求：PASS，capture 709 ms / preprocess 185 ms / HTTP 200
+连续 10 次手动分析：10/10 请求，frame 12/12/12，stale 0，无崩溃或冻结
+快速双击：只产生 1 个后端请求，PASS
+高质量拍照 -> 预览 -> 重拍：PASS，未保存测试照片
+图库选择 -> 预览：PASS
+```
+
+这轮通过 ADB reverse 连接本机 rules 后端，不是 Wi-Fi 性能或 ShutterMuse 质量评测。横屏只做了
+ADB 强制 UI 旋转，手机没有物理旋转；镜像、四角 bbox、真实横屏、场景矩阵、逐次内存和 Overlay
+时序仍未验收。因此真机 P0 仍是部分完成。详细机器报告：
+`evaluation/beeep_capture_eval/reports/real_device_redmi9a_2026-07-18.json`。
+
 ### 主体预检测
 
 相同 30 个离线场景：

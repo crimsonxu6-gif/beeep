@@ -1,0 +1,142 @@
+{
+  "report_type": "physical Android partial validation",
+  "date": "2026-07-18",
+  "commit": "b26c0df5cb6e3250e16ec0e02cf2153bd39a3870",
+  "device": {
+    "manufacturer": "Xiaomi",
+    "model": "Redmi 9A (M2006C3LC)",
+    "os": "Android 10 / API 29",
+    "miui": "V12.5.1.0.QCDCNXM",
+    "abi": "armeabi-v7a",
+    "memory_total_kb": 1819980,
+    "screen": "720x1600 @ 320 dpi"
+  },
+  "app": {
+    "package": "com.crimson054.aiphotocoach",
+    "version": "0.1.0",
+    "version_code": 1,
+    "min_sdk": 24,
+    "target_sdk": 36,
+    "build": "development APK",
+    "analysis_short_edge": 768,
+    "jpeg_quality": 0.7,
+    "upload_mode": "multipart",
+    "api_mode": "live",
+    "guidance_engine": "rules",
+    "fixture_enabled": false,
+    "mock_enabled": false,
+    "transport": "ADB reverse to local backend"
+  },
+  "physical_camera": {
+    "rear_portrait": {
+      "status": "passed",
+      "request_id": "req_e2c0e38612cd404fbe1a",
+      "http_status": 200,
+      "capture_ms": 1255,
+      "preprocess_ms": 572,
+      "payload_bytes": 12732,
+      "estimated_request_body_bytes": 15683,
+      "network_and_server_ms": 2765,
+      "server_total_ms": 105,
+      "client_network_overhead_ms": 2660,
+      "source_dimensions": "2448x3264",
+      "processed_dimensions": "768x1024",
+      "overlay_render_ms": null,
+      "tap_to_overlay_ms": null,
+      "notes": "The dark scene returned no stable action, so no overlay timing exists."
+    },
+    "front_portrait": {
+      "status": "passed",
+      "request_id": "req_f3baacff171d4fb39bec",
+      "http_status": 200,
+      "capture_ms": 709,
+      "preprocess_ms": 185,
+      "payload_bytes": 49854,
+      "estimated_request_body_bytes": 52805,
+      "network_and_server_ms": 434,
+      "server_total_ms": 59,
+      "client_network_overhead_ms": 375,
+      "source_dimensions": "1200x1600",
+      "processed_dimensions": "768x1024",
+      "overlay_render_ms": null,
+      "tap_to_overlay_ms": null,
+      "notes": "Front preview opened, but mirror correctness remains pending human verification."
+    },
+    "landscape_right": {
+      "status": "partial",
+      "http_status": 200,
+      "capture_ms": 705,
+      "preprocess_ms": 182,
+      "source_dimensions": "1200x1600",
+      "processed_dimensions": "768x1024",
+      "frame_state": "14/14/14",
+      "stale_dropped": 0,
+      "notes": "The UI was forced to rotation 1 through ADB while the phone remained physically portrait. Real sensor rotation and overlay alignment are not validated."
+    }
+  },
+  "stability": {
+    "ten_sequential_analyses": {
+      "status": "partial",
+      "requested": 10,
+      "backend_sample_delta": 10,
+      "frame_before": 2,
+      "frame_after": 12,
+      "final_frame_state": "12/12/12",
+      "stale_dropped": 0,
+      "crash": false,
+      "freeze": false,
+      "duplicate_request": false,
+      "temperature_c_after": 37.1,
+      "memory_measurement": null,
+      "notes": "Core stability passed, but per-request timing and memory rows were not captured."
+    },
+    "immediate_double_tap": {
+      "status": "passed",
+      "backend_sample_delta": 1,
+      "frame_state": "13/13/13",
+      "stale_dropped": 0,
+      "http_status": 200,
+      "error": null
+    }
+  },
+  "capture_and_gallery": {
+    "high_quality_capture_to_preview": "passed_without_saving",
+    "gallery_picker_to_preview": "passed_with_291fbe6b5725c044.png",
+    "source_gallery_modified": false
+  },
+  "gallery_boundary_set": {
+    "source": "Ten images added to Tencent/QQ_Images on 2026-07-18",
+    "raw_png_upload": {
+      "success": 5,
+      "request_too_large_413": 5,
+      "notes": "This is not the product path; raw PNGs over 2 MB correctly hit the request limit."
+    },
+    "temporary_768_jpeg_0_7_equivalent_upload": {
+      "success": 10,
+      "failed": 0,
+      "client_p50_ms": 86,
+      "client_p95_ms": 101,
+      "server_total_p50_ms": 55,
+      "server_total_p95_ms": 66,
+      "person_detected": 8,
+      "no_person_detected": 2,
+      "notes": "Local temporary preprocessing was equivalent in size/quality targets but was not executed by the phone. This validates the backend rules path, not ShutterMuse quality."
+    }
+  },
+  "cleanup": {
+    "phone_test_screenshots_removed": true,
+    "phone_mediastore_stale_rows_removed": true,
+    "original_ten_gallery_images_preserved": true,
+    "system_rotation_restored": "accelerometer_rotation=1,user_rotation=0"
+  },
+  "remaining_required_cases": [
+    "physical landscape left and right",
+    "front preview mirror",
+    "aspect-fill and four-corner bbox overlay alignment",
+    "normal, low light, backlight, motion blur, distant subject, and edge group camera scenes",
+    "real Wi-Fi and mobile-network timings without ADB reverse",
+    "timeout then manual retry",
+    "per-request memory and timing records for the ten-analysis run",
+    "ShutterMuse model path on suitable GPU hardware"
+  ]
+}
