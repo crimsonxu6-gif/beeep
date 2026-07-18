@@ -1,5 +1,9 @@
 # Beeep AI Photo Coach
 
+> Starting a new Codex session? Read [PROJECT_HANDOFF.md](./PROJECT_HANDOFF.md) first. It records
+> the current product decisions, verified baseline, environment, remaining risks, and next work in
+> one place.
+
 Expo + FastAPI mobile photography assistant. The MVP now implements the complete loop:
 
 ```text
