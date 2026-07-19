@@ -2,6 +2,18 @@
 
 > 给新的 Codex 窗口：先读完本文件，再执行 `git status --short --branch`。不要根据早期聊天记录重复实现已经完成的模块。
 
+## 2026-07-19 Redmi 9A 第二轮真机验证摘要
+
+- 测试源码提交：`eec83294733c989c0b126ef67624bd811035fc35`。
+- 新报告：`evaluation/beeep_capture_eval/reports/real_device_redmi9a_2026-07-18_round2.json`；首轮报告未覆盖。
+- 10 张 AI 生成受控图片均由 Redmi 9A 正式图库入口完成短边 768、JPEG 0.7、multipart 和 rules 链路，HTTP 200 为 10/10。
+- 真实局域网 Wi-Fi（无 ADB reverse）已完成后置 11 次（含冷启动）、前置 5 次；后置正式连续 10 次全部完成。
+- 四角固定 bbox 均结构性在界内且代理截图检查 4/4，但缺少用户肉眼确认，因此保持 `partial`。
+- 前置镜像和左右物理横屏缺少人工确认，不能用代码字段或 ADB 强制旋转冒充，保持 `partial`/`pending`。
+- `06_multiple_people_right_edge` 暴露 aspect-fill 后零宽 bbox，保持 `failed`；超时请求被分类为 `NETWORK_ERROR` 而非 `TIMEOUT`，手动重试虽成功，`device_20` 仍保持 `failed`。
+- 矩阵当前统计：`passed=5`、`partial=12`、`pending=3`、`failed=2`。
+- 本轮 guidance engine 为 `rules`；ShutterMuse 模型链路 `NOT_RUN`，原因是 24GB GPU 服务不可用。
+
 ## 1. 项目快照
 
 - 仓库：`https://github.com/crimsonxu6-gif/beeep`

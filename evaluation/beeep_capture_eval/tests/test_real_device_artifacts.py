@@ -90,6 +90,7 @@ def test_real_device_reports_use_unambiguous_commit_and_timing_fields() -> None:
         assert "request_body_bytes" not in keys
         assert "client_p50_ms" not in keys
         assert "client_p95_ms" not in keys
+        assert "estimated_request_body_bytes" in keys
 
 
 def test_matrix_evidence_cannot_overstate_physical_or_human_validation() -> None:
@@ -128,6 +129,26 @@ def test_rules_report_never_claims_shuttermuse_was_run() -> None:
     if report["app"]["guidance_engine"] == "rules":
         assert report["shuttermuse_model_path"]["status"] == "not_run"
         assert report["shuttermuse_model_path"]["reason"]
+
+
+def test_fixed_bbox_completion_requires_all_four_human_verified_cases() -> None:
+    if not ROUND2_REPORT.exists():
+        return
+    bbox = _json(ROUND2_REPORT)["bbox_alignment"]
+    cases = bbox["cases"]
+    assert {case["case_id"] for case in cases} == {
+        "bbox_top_left",
+        "bbox_top_right",
+        "bbox_bottom_left",
+        "bbox_bottom_right",
+    }
+    for case in cases:
+        assert len(case["bbox_norm"]) == 4
+        assert len(case["transformed_bbox_px"]) == 4
+    if bbox["status"] == "passed":
+        assert bbox["human_verified"] is True
+        assert all(case["status"] == "passed" for case in cases)
+        assert all(case["human_verified"] is True for case in cases)
 
 
 def test_second_round_report_is_a_distinct_file() -> None:
